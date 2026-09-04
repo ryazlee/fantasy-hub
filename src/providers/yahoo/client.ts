@@ -50,16 +50,27 @@ export async function yahooGet<T>(path: string, session: string): Promise<T> {
   const rotated = res.headers.get('X-Yahoo-Session')
   if (rotated) onRotate?.(rotated)
 
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    body = null
+  }
+
   if (res.status === 401) {
     throw new YahooError('Yahoo sign-in expired. Connect Yahoo again.', 401)
   }
   if (!res.ok) {
-    throw new YahooError('We could not load your Yahoo leagues.', res.status)
+    const msg =
+      body &&
+      typeof body === 'object' &&
+      typeof (body as { error?: unknown }).error === 'string' &&
+      (body as { error: string }).error
+        ? (body as { error: string }).error
+        : 'We could not load your Yahoo leagues.'
+    throw new YahooError(msg, res.status)
   }
 
-  try {
-    return (await res.json()) as T
-  } catch {
-    throw new YahooError('We could not read Yahoo data.')
-  }
+  if (body == null) throw new YahooError('We could not read Yahoo data.')
+  return body as T
 }

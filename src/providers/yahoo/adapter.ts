@@ -53,11 +53,21 @@ function content(raw: unknown): Record<string, unknown> {
   return yahooMerge(root.fantasy_content ?? root)
 }
 
+function isOwnedTeam(team: Record<string, unknown>): boolean {
+  if (num(team.is_owned) === 1 || text(team.is_owned) === '1') return true
+  const managers = yahooResources(team.managers, 'manager')
+  return managers.some(
+    (m) => num(m.is_current_login) === 1 || text(m.is_current_login) === '1',
+  )
+}
+
 export async function loadYahooLeagueBundles(session: string): Promise<LeagueBundle[]> {
   const year = new Date().getFullYear()
   const seasons = `${year - 1},${year}`
+  // Yahoo documents users→games→leagues and users→games→teams, not games/leagues/teams.
+  // Restrict to sports we map; some games reject /leagues and fail the whole collection.
   const raw = await yahooGet<unknown>(
-    `users;use_login=1/games;seasons=${seasons}/leagues/teams`,
+    `users;use_login=1/games;game_codes=nfl,nba,mlb,nhl;seasons=${seasons}/leagues`,
     session,
   )
   const users = yahooResources(content(raw).users, 'user')
@@ -85,7 +95,7 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
         sport,
         season,
         scoringPeriod,
-        teamCount: num(league.num_teams) ?? yahooResources(league.teams, 'team').length,
+        teamCount: num(league.num_teams) ?? 0,
         scoring: {},
       }
 
@@ -99,6 +109,7 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
               ).teams,
               'team',
             )
+      mappedLeague.teamCount = mappedLeague.teamCount || teamRows.length
 
       const teams: FantasyTeam[] = []
       const ownedTeamIds: string[] = []
@@ -114,7 +125,7 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
           ownerName: text(managers[0]?.nickname) || text(managers[0]?.guid) || undefined,
           logoUrl: logoFromTeam(team),
         })
-        if (num(team.is_owned) === 1 || text(team.is_owned) === '1') ownedTeamIds.push(idForTeam)
+        if (isOwnedTeam(team)) ownedTeamIds.push(idForTeam)
       }
       if (ownedTeamIds.length === 0 && teams.length === 1) ownedTeamIds.push(teams[0].id)
 

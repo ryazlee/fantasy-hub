@@ -147,12 +147,38 @@ async function proxyYahoo(request: Request, url: URL, env: Env): Promise<Respons
   headers.set('Content-Type', 'application/json; charset=utf-8')
   if (rotated !== blob) headers.set('X-Yahoo-Session', rotated)
   if (!yahooRes.ok) {
-    return new Response(JSON.stringify({ error: 'Yahoo could not load that data.' }), {
+    const detail = safeYahooError(text, yahooRes.status)
+    return new Response(JSON.stringify({ error: detail, yahooStatus: yahooRes.status, path }), {
       status: yahooRes.status === 401 ? 401 : 502,
       headers,
     })
   }
   return new Response(text || '{}', { status: 200, headers })
+}
+
+/** Strip secrets; keep a short Yahoo error description for SPA debugging. */
+function safeYahooError(body: string, status: number): string {
+  const trimmed = body.trim().slice(0, 800)
+  let description = ''
+  try {
+    const parsed = JSON.parse(trimmed) as {
+      error?: { description?: string; detail?: string } | string
+      description?: string
+    }
+    if (typeof parsed.error === 'string') description = parsed.error
+    else if (parsed.error && typeof parsed.error === 'object') {
+      description = parsed.error.description || parsed.error.detail || ''
+    } else if (parsed.description) description = parsed.description
+  } catch {
+    const xml = trimmed.match(/<description>([^<]+)<\/description>/i)
+    if (xml?.[1]) description = xml[1]
+  }
+  description = description.replace(/[\x00-\x1f]/g, ' ').trim().slice(0, 240)
+  if (/access[_-]?token|refresh[_-]?token|bearer\s+\S+/i.test(description)) {
+    description = ''
+  }
+  if (description) return `Yahoo ${status}: ${description}`
+  return `Yahoo could not load that data (${status}).`
 }
 
 function yahooPath(url: URL): string | null {
