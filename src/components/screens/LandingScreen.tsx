@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import AppHeader from '../AppHeader'
 import Button from '../Button'
 import MakerCredit from '../MakerCredit'
@@ -29,7 +28,6 @@ import type { ProviderName } from '../../domain/types'
 type ConnectModal = ProviderName | null
 
 export default function LandingScreen() {
-  const navigate = useNavigate()
   const config = useSavedConfig()
   const sleeper = config.providers.sleeper
   const yahoo = Boolean(config.providers.yahoo)
@@ -74,7 +72,6 @@ export default function LandingScreen() {
       connectSleeper(user.username ?? username.trim(), user.user_id)
       await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
       closeModal()
-      navigate('/dashboard')
     } catch (error) {
       setNotice(
         error instanceof SleeperError
@@ -149,7 +146,7 @@ export default function LandingScreen() {
 
   return (
     <div className="app-shell app-shell--home">
-      <AppHeader title="Fantasy Hub" quiet />
+      <AppHeader title="Fantasy Hub" />
       <main className="app-main">
         <div className="shell-inner">
           <div className="home">

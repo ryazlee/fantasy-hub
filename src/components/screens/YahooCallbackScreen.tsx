@@ -16,7 +16,7 @@ export default function YahooCallbackScreen() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
     }
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
-    navigate(session ? '/dashboard' : '/', { replace: true })
+    navigate('/', { replace: true })
   }, [navigate])
 
   return null

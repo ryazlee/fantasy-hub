@@ -160,17 +160,6 @@ a {
   padding-bottom: 0.85rem;
 }
 
-.app-header--quiet .app-header-inner {
-  padding-top: 0.55rem;
-  padding-bottom: 0.55rem;
-}
-
-.app-header--quiet .brand {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
 .brand-block {
   min-width: 0;
 }
@@ -206,11 +195,6 @@ a {
   flex-shrink: 0;
   display: block;
   object-fit: contain;
-}
-
-.app-header--quiet .brand__mark {
-  width: 1.25rem;
-  height: 1.25rem;
 }
 
 .subtitle {

@@ -5,18 +5,12 @@ import ThemeToggle from './ThemeToggle'
 type AppHeaderProps = {
   title: string
   subtitle?: string
-  quiet?: boolean
   extra?: ReactNode
 }
 
-export default function AppHeader({
-  title,
-  subtitle,
-  quiet = false,
-  extra,
-}: AppHeaderProps) {
+export default function AppHeader({ title, subtitle, extra }: AppHeaderProps) {
   return (
-    <header className={['app-header', quiet ? 'app-header--quiet' : null].filter(Boolean).join(' ')}>
+    <header className="app-header">
       <div className="app-header-inner">
         <div className="brand-block">
           <div className="brand-row">
@@ -33,7 +27,7 @@ export default function AppHeader({
               </Link>
             </h1>
           </div>
-          {subtitle && !quiet ? <p className="subtitle">{subtitle}</p> : null}
+          {subtitle ? <p className="subtitle">{subtitle}</p> : null}
         </div>
         <div className="header-actions">
           {extra}
