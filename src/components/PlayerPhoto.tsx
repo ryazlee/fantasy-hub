@@ -18,7 +18,7 @@ export default function PlayerPhoto({ player, sport = 'nfl', size = 28 }: Player
   }, [primary, fallback])
 
   if (!src) {
-    return <span className="player-photo player-photo--empty" aria-hidden style={{ width: size, height: size }} />
+    return <span className="player-photo player-photo--empty" aria-hidden />
   }
 
   return (

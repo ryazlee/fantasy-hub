@@ -70,7 +70,7 @@ export default function MatchupScoreline({
 
   const you = (
     <>
-      {teamLogoUrl ? <img className="team-mark" src={teamLogoUrl} alt="" width={22} height={22} /> : null}
+      {teamLogoUrl ? <img className="team-mark" src={teamLogoUrl} alt="" width={20} height={20} /> : null}
       {whoLabel(teamName, teamMine)}
     </>
   )
@@ -78,7 +78,7 @@ export default function MatchupScoreline({
   const them = (
     <>
       {!emptyOpponent && opponentLogoUrl ? (
-        <img className="team-mark" src={opponentLogoUrl} alt="" width={22} height={22} />
+        <img className="team-mark" src={opponentLogoUrl} alt="" width={20} height={20} />
       ) : null}
       {whoLabel(opponentName, opponentMine)}
     </>

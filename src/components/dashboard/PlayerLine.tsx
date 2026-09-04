@@ -21,6 +21,8 @@ type PlayerLineProps = {
   highlightLive?: boolean
   showGame?: boolean
   sport?: Sport
+  /** Opponent H2H column: pts toward center, who on the right */
+  mirror?: boolean
 }
 
 function renderDetail(detail: string | PlayerLineDetail[], detailTo?: string): ReactNode {
@@ -56,6 +58,7 @@ export default function PlayerLine({
   highlightLive = true,
   showGame = true,
   sport = 'nfl',
+  mirror = false,
 }: PlayerLineProps) {
   const game = gameForProTeam(games, player.proTeam)
   const live = game?.status === 'live'
@@ -69,6 +72,7 @@ export default function PlayerLine({
     tone && 'roster-row--pos',
     tone,
     live && highlightLive && 'roster-row--live',
+    mirror && 'roster-row--mirror',
   ]
     .filter(Boolean)
     .join(' ')
@@ -85,7 +89,7 @@ export default function PlayerLine({
         <PlayerPhoto player={player} sport={sport} size={28} />
         <span className="roster-row__name">
           <span className="roster-row__identity">
-            {player.name}
+            <span className="roster-row__player">{player.name}</span>
             {!player.starter ? (
               <span className="roster-flag roster-flag--bench" title="Bench">
                 B

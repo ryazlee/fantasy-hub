@@ -68,6 +68,7 @@ export default function MatchupsView() {
                       games={games}
                       highlightLive={prefs.highlightLive}
                       sport={row.league.sport}
+                      mirror
                     />
                   )}
                 />

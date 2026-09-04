@@ -798,6 +798,29 @@ a {
   border-left: 2px solid color-mix(in srgb, var(--pos) 70%, transparent);
 }
 
+.roster-row--mirror {
+  flex-direction: row-reverse;
+}
+
+.roster-row--mirror .roster-row__who {
+  flex-direction: row-reverse;
+}
+
+.roster-row--mirror .roster-row__name {
+  text-align: right;
+}
+
+.roster-row--mirror .roster-row__identity {
+  justify-content: flex-end;
+}
+
+.roster-row--mirror.roster-row--pos .roster-row__who {
+  padding-left: 0;
+  border-left: 0;
+  padding-right: 0.35rem;
+  border-right: 2px solid color-mix(in srgb, var(--pos) 70%, transparent);
+}
+
 .roster-row--pos .player-photo,
 .roster-row--pos .player-photo--empty {
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--pos) 45%, transparent);
@@ -849,10 +872,11 @@ a {
 
 .scoreline__who,
 .h2h__who {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
+  max-width: 100%;
   color: inherit;
   text-decoration: none;
 }
@@ -898,18 +922,30 @@ a {
 
 .roster-row__name {
   min-width: 0;
+  overflow: hidden;
 }
 
 .roster-row__identity {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.3rem;
   min-width: 0;
+  max-width: 100%;
+}
+
+.roster-row__player {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .roster-row__meta {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
   color: var(--text-muted);
 }
@@ -946,6 +982,7 @@ a {
 }
 
 .roster-row__pts {
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -1056,6 +1093,9 @@ a {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .h2h__scores {
@@ -1072,10 +1112,12 @@ a {
 
 .h2h__who--opp {
   flex-direction: row-reverse;
-  justify-self: end;
+  justify-content: flex-start;
+  text-align: right;
 }
 
 .h2h__name {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1087,6 +1129,7 @@ a {
 
 .h2h__who--opp .h2h__id {
   flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
 .h2h__who--opp .h2h__name {
@@ -1103,10 +1146,12 @@ a {
 }
 
 .h2h__id {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .h2h__you {
@@ -1192,14 +1237,19 @@ a {
 
 .h2h__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem 1rem;
   margin-top: 0.85rem;
   min-width: 0;
 }
 
+.h2h__grid > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .h2h__grid--solo {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .game-card {
@@ -1357,6 +1407,122 @@ a {
 
   .input {
     font-size: 16px;
+  }
+
+  /* Matchups / H2H: Sleeper-like density */
+  .h2h {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .h2h__league {
+    margin: 0 0 0.4rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.01em;
+  }
+
+  .h2h__scores {
+    gap: 0.25rem 0.35rem;
+  }
+
+  .h2h__who {
+    gap: 0.28rem;
+  }
+
+  .h2h .team-mark {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+  }
+
+  .h2h__id {
+    gap: 0.25rem;
+  }
+
+  .h2h__name {
+    font-size: 0.72rem;
+    letter-spacing: -0.01em;
+  }
+
+  .h2h__you {
+    font-size: 0.58rem;
+    padding: 0.05rem 0.22rem;
+  }
+
+  .h2h__mid {
+    gap: 0.28rem;
+  }
+
+  .h2h__pts {
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+  }
+
+  .h2h__tally {
+    font-size: 0.65rem;
+  }
+
+  .h2h__grid {
+    gap: 0.35rem 0.55rem;
+    margin-top: 0.55rem;
+  }
+
+  .h2h .roster-row {
+    gap: 0.28rem;
+    min-height: 1.65rem;
+  }
+
+  .h2h .roster-row--pos .roster-row__who {
+    padding-left: 0.25rem;
+  }
+
+  .h2h .roster-row--mirror.roster-row--pos .roster-row__who {
+    padding-left: 0;
+    padding-right: 0.25rem;
+  }
+
+  .h2h .roster-row__who {
+    gap: 0.22rem;
+  }
+
+  .h2h .player-photo,
+  .h2h .player-photo--empty {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+  }
+
+  .h2h .roster-row__identity {
+    gap: 0.2rem;
+  }
+
+  .h2h .roster-row__player {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .h2h .roster-row__meta {
+    font-size: 0.6rem;
+    line-height: 1.2;
+  }
+
+  .h2h .roster-row__pts {
+    font-size: 0.72rem;
+  }
+
+  .h2h .roster-flag {
+    font-size: 0.58rem;
+    padding: 0.04rem 0.2rem;
+  }
+
+  .h2h .roster-row--live {
+    margin: 0 -0.25rem;
+    padding: 0.1rem 0.25rem;
+    border-radius: 6px;
+  }
+
+  .h2h .roster-bench-rule {
+    margin: 0.25rem 0;
   }
 }
 
