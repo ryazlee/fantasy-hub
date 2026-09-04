@@ -884,7 +884,8 @@ a {
 .scoreline__who:hover .scoreline__name,
 .h2h__who:hover .h2h__name,
 .roster-row__team:hover,
-.roster-group__team:hover {
+.roster-group__team:hover,
+a.roster-row__player:hover {
   text-decoration: underline;
 }
 
@@ -939,6 +940,8 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
 }
 
 .roster-row__meta {
@@ -996,39 +999,75 @@ a {
 
 .chips {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
 }
 
 .chips::-webkit-scrollbar {
   display: none;
+  height: 0;
 }
 
 .chip {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 36px;
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--inset);
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
+  line-height: 1.2;
   text-decoration: none;
+  cursor: pointer;
+  box-shadow: none;
+  outline: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .chip:hover {
   color: var(--text);
+  border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border));
+  background: color-mix(in srgb, var(--text) 4%, var(--inset));
+}
+
+.chip:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .chip--on,
 .chip[aria-current='page'] {
   background: var(--accent);
   color: var(--accent-contrast);
-  border-color: transparent;
+  border-color: var(--accent);
+}
+
+.chip--on:hover,
+.chip[aria-current='page']:hover {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.92;
+}
+
+.chip--on:focus-visible,
+.chip[aria-current='page']:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .chips--sub {
@@ -1156,15 +1195,16 @@ a {
 
 .h2h__you {
   flex-shrink: 0;
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  line-height: 1.15;
-  padding: 0.08rem 0.32rem;
+  line-height: 1.2;
+  padding: 0.1rem 0.34rem;
   border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--link);
+  background: color-mix(in srgb, var(--link) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--link) 22%, transparent);
 }
 
 .league-slate {
@@ -1178,16 +1218,39 @@ a {
   border-top: 1px solid var(--border);
 }
 
-.league-slate__row--mine {
-  margin-inline: -0.4rem;
-  padding-inline: 0.4rem;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+.league-slate__row--mine .h2h__scores {
+  position: relative;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--link) 5.5%, transparent);
+  padding-left: 0.55rem;
+  margin-left: -0.55rem;
+  padding-right: 0.35rem;
+  margin-right: -0.35rem;
 }
 
-.league-slate__row--mine + .league-slate__row--mine,
-.league-slate__row + .league-slate__row--mine {
-  padding-top: 0.75rem;
+.league-slate__row--mine .h2h__scores::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  width: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--link) 65%, var(--border));
+  pointer-events: none;
+}
+
+html.theme-dark .league-slate__row--mine .h2h__scores {
+  background: color-mix(in srgb, var(--link) 12%, transparent);
+}
+
+html.theme-dark .league-slate__row--mine .h2h__scores::before {
+  background: color-mix(in srgb, var(--link) 70%, transparent);
+}
+
+html.theme-dark .h2h__you {
+  background: color-mix(in srgb, var(--link) 16%, transparent);
+  border-color: color-mix(in srgb, var(--link) 28%, transparent);
 }
 
 .h2h__tally {
@@ -1402,11 +1465,30 @@ a {
   }
 
   .chip {
-    min-height: 36px;
+    min-height: 32px;
+    padding: 0.28rem 0.75rem;
+  }
+
+  .chips--sub {
+    margin-top: -0.75rem;
+  }
+
+  .page-stack > .chips {
+    /* Tighten space under view chips on small screens */
+    margin-bottom: -0.35rem;
+  }
+
+  .page-stack > .chips + .chips--sub {
+    margin-bottom: -0.35rem;
   }
 
   .input {
     font-size: 16px;
+  }
+
+  /* Matchups: hide kickoff; keep pos · team */
+  .h2h .roster-row__game {
+    display: none;
   }
 
   /* Matchups / H2H: Sleeper-like density */

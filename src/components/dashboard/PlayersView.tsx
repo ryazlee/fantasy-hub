@@ -166,7 +166,9 @@ export default function PlayersView() {
       } else {
         list.sort(
           (a, b) =>
-            (b.player.points ?? 0) - (a.player.points ?? 0) || a.player.name.localeCompare(b.player.name),
+            Number(b.player.starter) - Number(a.player.starter) ||
+            (b.player.points ?? 0) - (a.player.points ?? 0) ||
+            a.player.name.localeCompare(b.player.name),
         )
       }
     }
@@ -219,35 +221,22 @@ export default function PlayersView() {
               group.label
             )}
           </p>
-          {groupBy === 'fantasy' ? (
-            <RosterLines
-              items={group.rows}
-              isStarter={(row) => row.player.starter}
-              itemKey={(row) => row.rowKey}
-              render={(row) => (
-                <PlayerLine
-                  player={row.player}
-                  games={games}
-                  pointsLabel={row.pointsLabel}
-                  sport={row.sport}
-                  highlightLive={highlightLive}
-                />
-              )}
-            />
-          ) : (
-            group.rows.map((row) => (
+          <RosterLines
+            items={group.rows}
+            isStarter={(row) => row.player.starter}
+            itemKey={(row) => row.rowKey}
+            render={(row) => (
               <PlayerLine
-                key={row.rowKey}
                 player={row.player}
                 games={games}
-                detail={row.detail}
-                detailTo={row.detailTo}
+                detail={groupBy === 'position' ? row.detail : undefined}
+                detailTo={groupBy === 'position' ? row.detailTo : undefined}
                 pointsLabel={row.pointsLabel}
                 sport={row.sport}
                 highlightLive={highlightLive}
               />
-            ))
-          )}
+            )}
+          />
         </div>
       ))}
     </section>

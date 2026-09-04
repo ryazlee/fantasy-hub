@@ -29,6 +29,13 @@ export function playerPhotoUrl(
   return `https://sleepercdn.com/content/${sport}/players/thumb/${encodeURIComponent(id)}.jpg`
 }
 
+/** Public Sleeper fantasy player card (no auth). Uses sport + canonical (Sleeper) id. */
+export function sleeperPlayerUrl(sport: Sport, canonicalPlayerId: string): string | undefined {
+  const id = canonicalPlayerId.trim()
+  if (!id || id === '0') return undefined
+  return `https://sleeper.com/${sport}/players/${encodeURIComponent(id)}`
+}
+
 export function sleeperAvatarUrl(avatar: string | undefined): string | undefined {
   const value = avatar?.trim()
   if (!value) return undefined

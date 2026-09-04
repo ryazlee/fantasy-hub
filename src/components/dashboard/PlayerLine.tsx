@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { injuryFlagClass, injuryTitle } from '../../domain/injury'
+import { sleeperPlayerUrl } from '../../domain/media'
 import { formatPoints } from '../../domain/sportDisplay'
 import { gameForProTeam, playerGameLabel } from '../../domain/nflGames'
 import { positionTone } from '../../domain/positions'
@@ -66,6 +67,7 @@ export default function PlayerLine({
   const injury = player.injuryStatus
   const detailNode = detail ? renderDetail(detail, detailTo) : null
   const hasMeta = Boolean(player.position || player.proTeam || detailNode || gameLabel)
+  const playerHref = sleeperPlayerUrl(sport, player.canonicalPlayerId)
   const tone = positionTone(player.position)
   const rowClass = [
     'roster-row',
@@ -81,7 +83,19 @@ export default function PlayerLine({
   if (player.position) meta.push(<span className="pos-label">{player.position}</span>)
   if (player.proTeam) meta.push(player.proTeam)
   if (detailNode) meta.push(detailNode)
-  if (gameLabel) meta.push(gameLabel)
+
+  const playerName = playerHref ? (
+    <a
+      className="roster-row__player"
+      href={playerHref}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {player.name}
+    </a>
+  ) : (
+    <span className="roster-row__player">{player.name}</span>
+  )
 
   return (
     <div className={rowClass}>
@@ -89,7 +103,7 @@ export default function PlayerLine({
         <PlayerPhoto player={player} sport={sport} size={28} />
         <span className="roster-row__name">
           <span className="roster-row__identity">
-            <span className="roster-row__player">{player.name}</span>
+            {playerName}
             {!player.starter ? (
               <span className="roster-flag roster-flag--bench" title="Bench">
                 B
@@ -109,6 +123,12 @@ export default function PlayerLine({
                   {part}
                 </Fragment>
               ))}
+              {gameLabel ? (
+                <span className="roster-row__game">
+                  {meta.length > 0 ? ' · ' : null}
+                  {gameLabel}
+                </span>
+              ) : null}
             </span>
           ) : null}
         </span>
