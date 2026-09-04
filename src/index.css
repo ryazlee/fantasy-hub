@@ -341,6 +341,20 @@ a {
   color: var(--text-muted);
 }
 
+.home__provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.account-row__hint {
+  margin: 0 0.85rem 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  text-align: left;
+}
+
 .account-row__check {
   flex-shrink: 0;
   color: var(--success);

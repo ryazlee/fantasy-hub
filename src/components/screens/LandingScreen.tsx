@@ -38,12 +38,10 @@ export default function LandingScreen() {
   const [espnSeason, setEspnSeason] = useState(() => String(defaultEspnSeason()))
   const [espnTeamId, setEspnTeamId] = useState('')
   const [notice, setNotice] = useState('')
-  const [espnNote, setEspnNote] = useState('')
   const [busy, setBusy] = useState(false)
   const closeModal = useCallback(() => {
     setModal(null)
     setNotice('')
-    setEspnNote('')
     setBusy(false)
   }, [])
 
@@ -53,7 +51,6 @@ export default function LandingScreen() {
 
   function openModal(next: ConnectModal) {
     setNotice('')
-    setEspnNote('')
     setBusy(false)
     if (next === 'espn') {
       setEspnInput('')
@@ -93,17 +90,13 @@ export default function LandingScreen() {
   async function onConnectEspn(event: FormEvent) {
     event.preventDefault()
     setNotice('')
-    setEspnNote('')
     setBusy(true)
     try {
       const draft = completeEspnConnect(espnInput, espnSeason, espnTeamId)
       const connection = await lookupEspnLeague(draft)
       connectEspn(connection)
       await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
-      const name = connection.leagueName || `League ${connection.leagueId}`
-      setEspnNote(`Added ${name}. Add another public league, or close.`)
-      setEspnInput('')
-      setEspnTeamId('')
+      closeModal()
     } catch (error) {
       setNotice(
         error instanceof EspnError
@@ -176,13 +169,18 @@ export default function LandingScreen() {
                   detail={yahoo ? 'Connected' : undefined}
                   onConnect={yahoo ? undefined : () => openModal('yahoo')}
                 />
-                <ProviderRow
-                  provider="espn"
-                  connected={espn.length > 0}
-                  detail={espn.length ? espnLeaguesDetail(espn) : undefined}
-                  onConnect={espn.length ? undefined : () => openModal('espn')}
-                  menuItems={espn.length ? espnMenu : undefined}
-                />
+                <div className="home__provider">
+                  <ProviderRow
+                    provider="espn"
+                    connected={espn.length > 0}
+                    detail={espn.length ? espnLeaguesDetail(espn) : undefined}
+                    onConnect={espn.length ? undefined : () => openModal('espn')}
+                    menuItems={espn.length ? espnMenu : undefined}
+                  />
+                  {espn.length ? (
+                    <p className="account-row__hint">Use ⋯ to add another league.</p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -269,7 +267,6 @@ export default function LandingScreen() {
             />
           </label>
           {notice && modal === 'espn' ? <p className="notice notice--danger">{notice}</p> : null}
-          {espnNote ? <p className="notice">{espnNote}</p> : null}
           <div className="modal__actions">
             <Button
               label={busy ? 'Connecting…' : 'Connect'}
