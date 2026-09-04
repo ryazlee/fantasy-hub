@@ -10,6 +10,21 @@ export class YahooError extends Error {
   }
 }
 
+/** Map Yahoo Fantasy app-gate 403s to actionable copy (portal approval, not re-auth). */
+function friendlyYahooApiError(raw: string, yahooStatus?: number): string {
+  if (
+    yahooStatus === 403 &&
+    /not authorized to perform this action|Fantasy API access is not approved/i.test(raw)
+  ) {
+    return (
+      'Yahoo has not approved Fantasy Sports API access for this app. ' +
+      'In the Yahoo Sports Developer Portal, request access at sports.yahoo.com/developer/access ' +
+      'and include your existing App ID. Re-connecting Yahoo alone will not fix this.'
+    )
+  }
+  return raw || 'We could not load your Yahoo leagues.'
+}
+
 export function yahooWorkerUrl(): string {
   return BASE
 }
@@ -61,14 +76,18 @@ export async function yahooGet<T>(path: string, session: string): Promise<T> {
     throw new YahooError('Yahoo sign-in expired. Connect Yahoo again.', 401)
   }
   if (!res.ok) {
-    const msg =
+    const rawMsg =
       body &&
       typeof body === 'object' &&
       typeof (body as { error?: unknown }).error === 'string' &&
       (body as { error: string }).error
         ? (body as { error: string }).error
-        : 'We could not load your Yahoo leagues.'
-    throw new YahooError(msg, res.status)
+        : ''
+    const yahooStatus =
+      body && typeof body === 'object' && typeof (body as { yahooStatus?: unknown }).yahooStatus === 'number'
+        ? (body as { yahooStatus: number }).yahooStatus
+        : undefined
+    throw new YahooError(friendlyYahooApiError(rawMsg, yahooStatus ?? res.status), res.status)
   }
 
   if (body == null) throw new YahooError('We could not read Yahoo data.')

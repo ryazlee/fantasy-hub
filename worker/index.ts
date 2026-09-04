@@ -177,6 +177,18 @@ function safeYahooError(body: string, status: number): string {
   if (/access[_-]?token|refresh[_-]?token|bearer\s+\S+/i.test(description)) {
     description = ''
   }
+  // App-level Fantasy API gate (not OAuth/session): Yahoo blocks every fantasy
+  // endpoint until the app is approved at sports.yahoo.com/developer/access.
+  if (
+    status === 403 &&
+    /not authorized to perform this action/i.test(description || trimmed)
+  ) {
+    return (
+      'Yahoo Fantasy API access is not approved for this app. ' +
+      'Request Fantasy Sports access at sports.yahoo.com/developer/access ' +
+      '(include your existing App ID). Re-connecting alone will not fix this.'
+    )
+  }
   if (description) return `Yahoo ${status}: ${description}`
   return `Yahoo could not load that data (${status}).`
 }
