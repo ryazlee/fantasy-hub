@@ -1,0 +1,5 @@
+name = "fantasy-hub"
+main = "worker/index.ts"
+compatibility_date = "2025-09-01"
+account_id = "476ea378eda4705f58684397a562b593"
+workers_dev = true

@@ -56,5 +56,6 @@ export type SleeperPlayer = {
   team?: string
   fantasy_positions?: string[]
   espn_id?: number | string | null
+  yahoo_id?: number | string | null
   injury_status?: string | null
 }

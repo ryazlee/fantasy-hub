@@ -17,7 +17,9 @@ import {
   rawLeagueIdFrom,
 } from '../providers/sleeper/adapter'
 import { SleeperError } from '../providers/sleeper/client'
-import { espnLeagues, loadConfig } from '../utils/storage'
+import { loadYahooLeagueBundles, loadYahooRoster } from '../providers/yahoo/adapter'
+import { onYahooSession, YahooError } from '../providers/yahoo/client'
+import { espnLeagues, loadConfig, loadYahooSession, saveYahooSession } from '../utils/storage'
 
 type LeagueBundle = {
   league: FantasyLeague
@@ -28,7 +30,9 @@ type LeagueBundle = {
 }
 
 function userMessage(error: unknown, fallback: string): string {
-  if (error instanceof SleeperError || error instanceof EspnError) return error.message
+  if (error instanceof SleeperError || error instanceof EspnError || error instanceof YahooError) {
+    return error.message
+  }
   return fallback
 }
 
@@ -133,6 +137,11 @@ async function loadRosterFromAdapter(
     const bundle = await loadEspnLeagueBundle(conn)
     return bundle.rostersByTeamId.get(teamId) ?? []
   }
+  if (league.provider === 'yahoo') {
+    const session = loadYahooSession()
+    if (!session) return []
+    return loadYahooRoster(session, teamId, league)
+  }
   return []
 }
 
@@ -178,6 +187,7 @@ export async function loadDashboard(): Promise<DashboardData> {
   const teams: DashboardTeam[] = []
   const leagues: LeagueSlate[] = []
   const errors: DashboardData['errors'] = []
+  onYahooSession(saveYahooSession)
 
   const sleeper = config.providers.sleeper
   if (sleeper) {
@@ -232,6 +242,22 @@ export async function loadDashboard(): Promise<DashboardData> {
       errors.push({
         provider: 'espn',
         message: 'One ESPN league could not load. The rest are still on the dashboard.',
+      })
+    }
+  }
+
+  const yahooSession = loadYahooSession()
+  if (config.providers.yahoo && yahooSession) {
+    try {
+      const bundles = await loadYahooLeagueBundles(yahooSession)
+      for (const bundle of bundles) {
+        collectOwned(teams, bundle)
+        leagues.push(toLeagueSlate(bundle))
+      }
+    } catch (error) {
+      errors.push({
+        provider: 'yahoo',
+        message: userMessage(error, 'We could not load your Yahoo leagues.'),
       })
     }
   }

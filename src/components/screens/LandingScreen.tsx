@@ -13,6 +13,7 @@ import { EspnError } from '../../providers/espn/client'
 import { completeEspnConnect, defaultEspnSeason, parseEspnConnectInput } from '../../providers/espn/parse'
 import { lookupSleeperUser } from '../../providers/sleeper/adapter'
 import { SleeperError } from '../../providers/sleeper/client'
+import { yahooAuthUrl, yahooConfigured } from '../../providers/yahoo/client'
 import { applyShareMeta } from '../../utils/shareMeta'
 import {
   connectEspn,
@@ -167,7 +168,17 @@ export default function LandingScreen() {
                   provider="yahoo"
                   connected={yahoo}
                   detail={yahoo ? 'Connected' : undefined}
-                  onConnect={yahoo ? undefined : () => openModal('yahoo')}
+                  onConnect={
+                    yahoo
+                      ? undefined
+                      : () => {
+                          if (yahooConfigured()) {
+                            window.location.assign(yahooAuthUrl())
+                            return
+                          }
+                          openModal('yahoo')
+                        }
+                  }
                 />
                 <div className="home__provider">
                   <ProviderRow
@@ -214,8 +225,8 @@ export default function LandingScreen() {
 
       <Modal title="Connect Yahoo" open={modal === 'yahoo'} onClose={closeModal}>
         <p className="notice">
-          Yahoo needs a Cloudflare Worker for sign-in. That is not set up yet — Sleeper and public
-          ESPN leagues work without it.
+          Yahoo needs the Worker URL in this build. Use the deployed site or set VITE_YAHOO_API_URL
+          locally.
         </p>
         <div className="modal__actions">
           <Button label="Close" variant="secondary" onClick={closeModal} />
