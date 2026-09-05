@@ -11,6 +11,7 @@ import PlayersView from './components/dashboard/PlayersView'
 import MatchupsView from './components/dashboard/MatchupsView'
 import LeaguesView from './components/dashboard/LeaguesView'
 import LiveView from './components/dashboard/LiveView'
+import ResearchView from './components/dashboard/ResearchView'
 import TeamScreen from './components/screens/TeamScreen'
 import PlayerScreen from './components/screens/PlayerScreen'
 import SettingsScreen from './components/screens/SettingsScreen'
@@ -45,6 +46,7 @@ function App() {
               <Route path="matchups" element={<MatchupsView />} />
               <Route path="leagues" element={<LeaguesView />} />
               <Route path="live" element={<LiveView />} />
+              <Route path="research" element={<ResearchView />} />
             </Route>
             <Route path="/team/:teamId" element={<TeamScreen />} />
             <Route path="/player/:playerId" element={<PlayerScreen />} />

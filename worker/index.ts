@@ -4,6 +4,8 @@ type Env = {
   YAHOO_REDIRECT_URI: string
   TOKEN_ENCRYPTION_KEY: string
   FRONTEND_ORIGIN: string
+  /** Optional Reddit "installed app" client id for read-only OAuth (no secret). */
+  REDDIT_CLIENT_ID?: string
 }
 
 type TokenSet = {
@@ -15,7 +17,21 @@ type TokenSet = {
 const YAHOO_AUTH = 'https://api.login.yahoo.com/oauth2/request_auth'
 const YAHOO_TOKEN = 'https://api.login.yahoo.com/oauth2/get_token'
 const YAHOO_API = 'https://fantasysports.yahooapis.com/fantasy/v2'
+const REDDIT_TOKEN = 'https://www.reddit.com/api/v1/access_token'
+const REDDIT_OAUTH = 'https://oauth.reddit.com'
+const REDDIT_PUBLIC = 'https://www.reddit.com'
+const REDDIT_UA = 'web:fantasy-hub:v0.1 (research)'
 const STATE_MAX_AGE_MS = 15 * 60 * 1000
+const ALLOWED_SUBREDDITS = new Set([
+  'fantasyfootball',
+  'nfl',
+  'dynastyff',
+  'fantasy_football',
+  'ffcommish',
+  'fantasyfootballers',
+])
+
+let redditTokenCache: { access_token: string; expires_at: number } | null = null
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -29,9 +45,12 @@ export default {
         if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
         return proxyYahoo(request, url, env)
       }
+      if (request.method === 'GET' && url.pathname === '/reddit/search') {
+        return cors(request, env, await searchReddit(url, env))
+      }
       return json({ error: 'Not found' }, 404)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Yahoo worker error'
+      const message = error instanceof Error ? error.message : 'Worker error'
       return cors(request, env, json({ error: message }, 500))
     }
   },
@@ -115,6 +134,122 @@ async function handleCallback(url: URL, env: Env): Promise<Response> {
   const tokens = await exchangeCode(env, code)
   const session = await encryptTokens(env, tokens)
   return Response.redirect(`${returnTo}/yahoo/callback#session=${encodeURIComponent(session)}`, 302)
+}
+
+async function searchReddit(url: URL, env: Env): Promise<Response> {
+  const q = (url.searchParams.get('q') ?? '').trim()
+  if (!q || q.length > 300) {
+    return json({ error: 'Enter a shorter search (player names).' }, 400)
+  }
+  const sortRaw = (url.searchParams.get('sort') ?? 'new').toLowerCase()
+  const sort = ['relevance', 'hot', 'top', 'new', 'comments'].includes(sortRaw) ? sortRaw : 'new'
+  const limit = Math.min(25, Math.max(1, Number(url.searchParams.get('limit') ?? 20) || 20))
+  const subs = (url.searchParams.get('subreddits') ?? 'fantasyfootball')
+    .split(/[+,]/)
+    .map((s) => s.trim().toLowerCase().replace(/^r\//, ''))
+    .filter((s) => ALLOWED_SUBREDDITS.has(s))
+  if (subs.length === 0) {
+    return json({ error: 'Pick at least one allowed football subreddit.' }, 400)
+  }
+
+  const path = `/r/${subs.join('+')}/search`
+  const params = new URLSearchParams({
+    q,
+    restrict_sr: 'true',
+    sort,
+    limit: String(limit),
+    raw_json: '1',
+    t: sort === 'top' ? 'week' : '',
+  })
+  if (!params.get('t')) params.delete('t')
+
+  const auth = await redditAccess(env)
+  const target = auth
+    ? `${REDDIT_OAUTH}${path}?${params}`
+    : `${REDDIT_PUBLIC}${path}.json?${params}`
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': REDDIT_UA,
+  }
+  if (auth) headers.Authorization = `Bearer ${auth}`
+
+  const res = await fetch(target, { headers })
+  const text = await res.text()
+  if (!res.ok) {
+    if (res.status === 403 || res.status === 401) {
+      return json(
+        {
+          error: auth
+            ? 'Reddit blocked that search. Check the Reddit app client id on the worker.'
+            : 'Reddit blocked public search from the worker. Add a free Reddit “installed app” client id as REDDIT_CLIENT_ID on the worker, then retry.',
+        },
+        502,
+      )
+    }
+    return json({ error: `Reddit search failed (${res.status}).` }, 502)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return json({ error: 'Reddit returned unreadable data.' }, 502)
+  }
+
+  const listing = parsed as {
+    data?: { children?: Array<{ data?: Record<string, unknown> }> }
+  }
+  const posts = (listing.data?.children ?? [])
+    .map((row) => row.data)
+    .filter((row): row is Record<string, unknown> => Boolean(row))
+    .map((row) => ({
+      id: String(row.id ?? ''),
+      title: String(row.title ?? ''),
+      subreddit: String(row.subreddit ?? ''),
+      author: String(row.author ?? ''),
+      score: Number(row.score) || 0,
+      comments: Number(row.num_comments) || 0,
+      createdUtc: Number(row.created_utc) || 0,
+      permalink: row.permalink
+        ? `https://www.reddit.com${String(row.permalink)}`
+        : String(row.url ?? ''),
+      flair: typeof row.link_flair_text === 'string' ? row.link_flair_text : undefined,
+      selftext:
+        typeof row.selftext === 'string' && row.selftext.trim()
+          ? row.selftext.trim().slice(0, 280)
+          : undefined,
+    }))
+    .filter((row) => row.id && row.title)
+
+  return json({ posts, subreddits: subs, query: q, sort })
+}
+
+async function redditAccess(env: Env): Promise<string | null> {
+  const clientId = env.REDDIT_CLIENT_ID?.trim()
+  if (!clientId) return null
+  if (redditTokenCache && redditTokenCache.expires_at > Date.now() + 30_000) {
+    return redditTokenCache.access_token
+  }
+  const basic = btoa(`${clientId}:`)
+  const res = await fetch(REDDIT_TOKEN, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basic}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': REDDIT_UA,
+    },
+    body: new URLSearchParams({
+      grant_type: 'https://oauth.reddit.com/grants/installed_client',
+      device_id: 'fantasy-hub-research',
+    }),
+  })
+  const data = (await res.json()) as { access_token?: string; expires_in?: number }
+  if (!res.ok || !data.access_token) return null
+  redditTokenCache = {
+    access_token: data.access_token,
+    expires_at: Date.now() + Math.max(60, data.expires_in ?? 3600) * 1000,
+  }
+  return data.access_token
 }
 
 async function proxyYahoo(request: Request, url: URL, env: Env): Promise<Response> {

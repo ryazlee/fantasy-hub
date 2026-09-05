@@ -31,6 +31,85 @@ export type SavedDashboard = {
 
 const CONFIG_KEY = 'fantasy-hub-config'
 const YAHOO_KEY = 'fantasy-hub-yahoo'
+const RESEARCH_KEY = 'fantasy-hub-research'
+
+const ALLOWED_RESEARCH_SUBS = new Set([
+  'fantasyfootball',
+  'nfl',
+  'dynastyff',
+  'fantasy_football',
+  'ffcommish',
+  'fantasyfootballers',
+])
+
+export type ResearchSort = 'new' | 'relevance' | 'top' | 'hot'
+
+export type ResearchFilters = {
+  subs: string[]
+  players: string[]
+  sort: ResearchSort
+}
+
+const DEFAULT_RESEARCH_FILTERS: ResearchFilters = {
+  subs: ['fantasyfootball', 'nfl'],
+  players: [],
+  sort: 'new',
+}
+
+function isResearchSort(value: unknown): value is ResearchSort {
+  return value === 'new' || value === 'relevance' || value === 'top' || value === 'hot'
+}
+
+function normalizeResearchFilters(raw: unknown): ResearchFilters {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      subs: [...DEFAULT_RESEARCH_FILTERS.subs],
+      players: [],
+      sort: DEFAULT_RESEARCH_FILTERS.sort,
+    }
+  }
+  const value = raw as Record<string, unknown>
+  const subs = Array.isArray(value.subs)
+    ? value.subs.filter(
+        (id): id is string => typeof id === 'string' && ALLOWED_RESEARCH_SUBS.has(id),
+      )
+    : []
+  const players = Array.isArray(value.players)
+    ? value.players
+        .filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
+        .map((name) => name.trim())
+        .slice(0, 8)
+    : []
+  return {
+    subs: subs.length ? subs : [...DEFAULT_RESEARCH_FILTERS.subs],
+    players,
+    sort: isResearchSort(value.sort) ? value.sort : DEFAULT_RESEARCH_FILTERS.sort,
+  }
+}
+
+export function loadResearchFilters(): ResearchFilters {
+  try {
+    const raw = localStorage.getItem(RESEARCH_KEY)
+    if (!raw) {
+      return {
+        subs: [...DEFAULT_RESEARCH_FILTERS.subs],
+        players: [],
+        sort: DEFAULT_RESEARCH_FILTERS.sort,
+      }
+    }
+    return normalizeResearchFilters(JSON.parse(raw))
+  } catch {
+    return {
+      subs: [...DEFAULT_RESEARCH_FILTERS.subs],
+      players: [],
+      sort: DEFAULT_RESEARCH_FILTERS.sort,
+    }
+  }
+}
+
+export function saveResearchFilters(filters: ResearchFilters): void {
+  localStorage.setItem(RESEARCH_KEY, JSON.stringify(normalizeResearchFilters(filters)))
+}
 
 const DEFAULT_PREFS: DashboardPrefs = {
   showBench: true,

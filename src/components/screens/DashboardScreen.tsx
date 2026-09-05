@@ -16,6 +16,7 @@ const VIEWS: { id: DashboardView; to: string; label: string; end?: boolean }[] =
   { id: 'leagues', to: '/dashboard/leagues', label: 'Leagues' },
   { id: 'players', to: '/dashboard/players', label: 'Players' },
   { id: 'live', to: '/dashboard/live', label: 'Live' },
+  { id: 'research', to: '/dashboard/research', label: 'Research' },
 ]
 
 export default function DashboardScreen() {

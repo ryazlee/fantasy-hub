@@ -67,7 +67,7 @@ export type DashboardTeam = {
   opponentRoster: FantasyRosterPlayer[]
 }
 
-export type DashboardView = 'teams' | 'matchups' | 'leagues' | 'players' | 'live'
+export type DashboardView = 'teams' | 'matchups' | 'leagues' | 'players' | 'live' | 'research'
 
 export type LeagueSlateSide = {
   id: string
