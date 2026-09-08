@@ -4,8 +4,6 @@ type Env = {
   YAHOO_REDIRECT_URI: string
   TOKEN_ENCRYPTION_KEY: string
   FRONTEND_ORIGIN: string
-  /** Optional Reddit "installed app" client id for read-only OAuth (no secret). */
-  REDDIT_CLIENT_ID?: string
 }
 
 type TokenSet = {
@@ -14,12 +12,23 @@ type TokenSet = {
   expires_at: number
 }
 
+type RedditPost = {
+  id: string
+  title: string
+  subreddit: string
+  author: string
+  score: number
+  comments: number
+  createdUtc: number
+  permalink: string
+  flair?: string
+  selftext?: string
+}
+
 const YAHOO_AUTH = 'https://api.login.yahoo.com/oauth2/request_auth'
 const YAHOO_TOKEN = 'https://api.login.yahoo.com/oauth2/get_token'
 const YAHOO_API = 'https://fantasysports.yahooapis.com/fantasy/v2'
-const REDDIT_TOKEN = 'https://www.reddit.com/api/v1/access_token'
-const REDDIT_OAUTH = 'https://oauth.reddit.com'
-const REDDIT_PUBLIC = 'https://www.reddit.com'
+const ARCTIC_SHIFT = 'https://arctic-shift.photon-reddit.com/api/posts/search'
 const REDDIT_UA = 'web:fantasy-hub:v0.1 (research)'
 const STATE_MAX_AGE_MS = 15 * 60 * 1000
 const ALLOWED_SUBREDDITS = new Set([
@@ -30,8 +39,6 @@ const ALLOWED_SUBREDDITS = new Set([
   'ffcommish',
   'fantasyfootballers',
 ])
-
-let redditTokenCache: { access_token: string; expires_at: number } | null = null
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -46,7 +53,7 @@ export default {
         return proxyYahoo(request, url, env)
       }
       if (request.method === 'GET' && url.pathname === '/reddit/search') {
-        return cors(request, env, await searchReddit(url, env))
+        return cors(request, env, await searchReddit(url))
       }
       return json({ error: 'Not found' }, 404)
     } catch (error) {
@@ -136,9 +143,88 @@ async function handleCallback(url: URL, env: Env): Promise<Response> {
   return Response.redirect(`${returnTo}/yahoo/callback#session=${encodeURIComponent(session)}`, 302)
 }
 
-async function searchReddit(url: URL, env: Env): Promise<Response> {
+function parseSearchNames(q: string): string[] {
+  const parts = q.split(/\s+OR\s+|\||,/i)
+  const names: string[] = []
+  const seen = new Set<string>()
+  for (const part of parts) {
+    const name = part.trim().replace(/^["']+|["']+$/g, '').trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    names.push(name)
+    if (names.length >= 8) break
+  }
+  return names
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isArcticTimeout(status: number, bodyText: string, bodyError?: string): boolean {
+  if (status !== 422) return false
+  const msg = `${bodyError ?? ''} ${bodyText}`.toLowerCase()
+  return msg.includes('timeout') || msg.includes('slow down')
+}
+
+async function fetchArcticPosts(
+  subreddit: string,
+  name: string,
+  limit: number,
+): Promise<{ posts: RedditPost[]; error?: string; failed: boolean }> {
+  const params = new URLSearchParams({
+    subreddit,
+    query: name,
+    limit: String(Math.min(100, limit)),
+    sort: 'desc',
+    after: '60d',
+  })
+  const url = `${ARCTIC_SHIFT}?${params}`
+  const headers = { Accept: 'application/json', 'User-Agent': REDDIT_UA }
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await fetch(url, { headers })
+    const text = await res.text()
+    let parsed: { data?: unknown; error?: string } = {}
+    try {
+      parsed = JSON.parse(text) as typeof parsed
+    } catch {
+      if (attempt === 0 && isArcticTimeout(res.status, text)) {
+        await sleep(1000)
+        continue
+      }
+      return { posts: [], error: 'Reddit archive returned unreadable data.', failed: true }
+    }
+
+    if (res.ok && !parsed.error) {
+      if (!Array.isArray(parsed.data)) return { posts: [], failed: false }
+      const posts = parsed.data
+        .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')
+        .map(mapArcticPost)
+        .filter((row) => row.id && row.title && ALLOWED_SUBREDDITS.has(row.subreddit.toLowerCase()))
+      return { posts, failed: false }
+    }
+
+    const errText = parsed.error || text.trim().slice(0, 240) || `HTTP ${res.status}`
+    if (attempt === 0 && isArcticTimeout(res.status, text, parsed.error)) {
+      await sleep(1000)
+      continue
+    }
+    return { posts: [], error: errText, failed: true }
+  }
+
+  return { posts: [], error: 'Timeout. Maybe slow down a bit', failed: true }
+}
+
+async function searchReddit(url: URL): Promise<Response> {
   const q = (url.searchParams.get('q') ?? '').trim()
   if (!q || q.length > 300) {
+    return json({ error: 'Enter a shorter search (player names).' }, 400)
+  }
+  const names = parseSearchNames(q)
+  if (names.length === 0) {
     return json({ error: 'Enter a shorter search (player names).' }, 400)
   }
   const sortRaw = (url.searchParams.get('sort') ?? 'new').toLowerCase()
@@ -152,104 +238,69 @@ async function searchReddit(url: URL, env: Env): Promise<Response> {
     return json({ error: 'Pick at least one allowed football subreddit.' }, 400)
   }
 
-  const path = `/r/${subs.join('+')}/search`
-  const params = new URLSearchParams({
-    q,
-    restrict_sr: 'true',
-    sort,
-    limit: String(limit),
-    raw_json: '1',
-    t: sort === 'top' ? 'week' : '',
-  })
-  if (!params.get('t')) params.delete('t')
+  const byId = new Map<string, RedditPost>()
+  let successCount = 0
+  let lastError = ''
+  let callIndex = 0
 
-  const auth = await redditAccess(env)
-  const target = auth
-    ? `${REDDIT_OAUTH}${path}?${params}`
-    : `${REDDIT_PUBLIC}${path}.json?${params}`
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'User-Agent': REDDIT_UA,
-  }
-  if (auth) headers.Authorization = `Bearer ${auth}`
-
-  const res = await fetch(target, { headers })
-  const text = await res.text()
-  if (!res.ok) {
-    if (res.status === 403 || res.status === 401) {
-      return json(
-        {
-          error: auth
-            ? 'Reddit blocked that search. Check the Reddit app client id on the worker.'
-            : 'Reddit blocked public search from the worker. Add a free Reddit “installed app” client id as REDDIT_CLIENT_ID on the worker, then retry.',
-        },
-        502,
-      )
+  for (const subreddit of subs) {
+    for (const name of names) {
+      if (callIndex > 0) await sleep(200)
+      callIndex += 1
+      const result = await fetchArcticPosts(subreddit, name, limit)
+      if (result.failed) {
+        if (result.error) lastError = result.error
+        continue
+      }
+      successCount += 1
+      for (const post of result.posts) {
+        if (!byId.has(post.id)) byId.set(post.id, post)
+      }
     }
-    return json({ error: `Reddit search failed (${res.status}).` }, 502)
   }
 
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return json({ error: 'Reddit returned unreadable data.' }, 502)
+  if (successCount === 0) {
+    const detail = lastError || 'unknown error'
+    return json({ error: `Reddit archive search failed: ${detail}` }, 502)
   }
 
-  const listing = parsed as {
-    data?: { children?: Array<{ data?: Record<string, unknown> }> }
+  let posts = [...byId.values()]
+  if (sort === 'top' || sort === 'hot') {
+    posts.sort((a, b) => b.score - a.score || b.createdUtc - a.createdUtc)
+  } else if (sort === 'comments') {
+    posts.sort((a, b) => b.comments - a.comments || b.createdUtc - a.createdUtc)
+  } else {
+    // new + relevance (archive has no true relevance rank)
+    posts.sort((a, b) => b.createdUtc - a.createdUtc)
   }
-  const posts = (listing.data?.children ?? [])
-    .map((row) => row.data)
-    .filter((row): row is Record<string, unknown> => Boolean(row))
-    .map((row) => ({
-      id: String(row.id ?? ''),
-      title: String(row.title ?? ''),
-      subreddit: String(row.subreddit ?? ''),
-      author: String(row.author ?? ''),
-      score: Number(row.score) || 0,
-      comments: Number(row.num_comments) || 0,
-      createdUtc: Number(row.created_utc) || 0,
-      permalink: row.permalink
-        ? `https://www.reddit.com${String(row.permalink)}`
-        : String(row.url ?? ''),
-      flair: typeof row.link_flair_text === 'string' ? row.link_flair_text : undefined,
-      selftext:
-        typeof row.selftext === 'string' && row.selftext.trim()
-          ? row.selftext.trim().slice(0, 280)
-          : undefined,
-    }))
-    .filter((row) => row.id && row.title)
+  posts = posts.slice(0, limit)
 
   return json({ posts, subreddits: subs, query: q, sort })
 }
 
-async function redditAccess(env: Env): Promise<string | null> {
-  const clientId = env.REDDIT_CLIENT_ID?.trim()
-  if (!clientId) return null
-  if (redditTokenCache && redditTokenCache.expires_at > Date.now() + 30_000) {
-    return redditTokenCache.access_token
+function mapArcticPost(row: Record<string, unknown>): RedditPost {
+  const permalinkRaw = String(row.permalink ?? '')
+  const permalink = permalinkRaw
+    ? permalinkRaw.startsWith('http')
+      ? permalinkRaw
+      : `https://www.reddit.com${permalinkRaw.startsWith('/') ? '' : '/'}${permalinkRaw}`
+    : String(row.url ?? '')
+  const self =
+    typeof row.selftext === 'string' && row.selftext.trim()
+      ? row.selftext.trim().slice(0, 280)
+      : undefined
+  return {
+    id: String(row.id ?? ''),
+    title: String(row.title ?? ''),
+    subreddit: String(row.subreddit ?? ''),
+    author: String(row.author ?? ''),
+    score: Number(row.score) || 0,
+    comments: Number(row.num_comments) || 0,
+    createdUtc: Number(row.created_utc) || 0,
+    permalink,
+    flair: typeof row.link_flair_text === 'string' ? row.link_flair_text : undefined,
+    selftext: self,
   }
-  const basic = btoa(`${clientId}:`)
-  const res = await fetch(REDDIT_TOKEN, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': REDDIT_UA,
-    },
-    body: new URLSearchParams({
-      grant_type: 'https://oauth.reddit.com/grants/installed_client',
-      device_id: 'fantasy-hub-research',
-    }),
-  })
-  const data = (await res.json()) as { access_token?: string; expires_in?: number }
-  if (!res.ok || !data.access_token) return null
-  redditTokenCache = {
-    access_token: data.access_token,
-    expires_at: Date.now() + Math.max(60, data.expires_in ?? 3600) * 1000,
-  }
-  return data.access_token
 }
 
 async function proxyYahoo(request: Request, url: URL, env: Env): Promise<Response> {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import Modal from '../Modal'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import { queryKeys } from '../../hooks/queryKeys'
 import {
@@ -26,6 +27,11 @@ const SUBREDDITS = [
 ] as const
 
 type Sort = ResearchSort
+
+type RosterOption = {
+  name: string
+  position: string
+}
 
 function toggleValue(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
@@ -66,37 +72,56 @@ export default function ResearchView() {
   const [subs, setSubs] = useState<string[]>(initial.subs)
   const [players, setPlayers] = useState<string[]>(initial.players)
   const [sort, setSort] = useState<Sort>(initial.sort)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [playerFilter, setPlayerFilter] = useState('')
   const [submitted, setSubmitted] = useState<{
     query: string
     subreddits: string[]
     sort: Sort
   } | null>(null)
 
-  const rosterNames = useMemo(() => {
-    const names = new Map<string, string>()
+  const rosterOptions = useMemo(() => {
+    const byName = new Map<string, RosterOption>()
     for (const team of teams) {
       for (const player of team.roster) {
         if (!showBench && !player.starter) continue
         const name = player.name.trim()
         if (!name) continue
-        if (!names.has(name.toLowerCase())) names.set(name.toLowerCase(), name)
+        const key = name.toLowerCase()
+        if (byName.has(key)) continue
+        byName.set(key, { name, position: player.position.trim() })
       }
     }
-    return [...names.values()].sort((a, b) => a.localeCompare(b))
+    return [...byName.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    )
   }, [teams, showBench])
 
+  const filteredRoster = useMemo(() => {
+    const q = playerFilter.trim().toLowerCase()
+    if (!q) return rosterOptions
+    return rosterOptions.filter(
+      (player) =>
+        player.name.toLowerCase().includes(q) || player.position.toLowerCase().includes(q),
+    )
+  }, [rosterOptions, playerFilter])
+
   useEffect(() => {
-    if (rosterNames.length === 0) return
-    const allowed = new Set(rosterNames)
+    if (rosterOptions.length === 0) return
+    const allowed = new Set(rosterOptions.map((player) => player.name))
     setPlayers((prev) => {
       const next = prev.filter((name) => allowed.has(name))
       return next.length === prev.length ? prev : next
     })
-  }, [rosterNames])
+  }, [rosterOptions])
 
   useEffect(() => {
     saveResearchFilters({ subs, players, sort })
   }, [subs, players, sort])
+
+  useEffect(() => {
+    if (!pickerOpen) setPlayerFilter('')
+  }, [pickerOpen])
 
   const query = useQuery({
     queryKey: queryKeys.redditSearch(
@@ -125,6 +150,14 @@ export default function ResearchView() {
     })
   }
 
+  function togglePlayer(name: string) {
+    setPlayers((prev) => {
+      if (prev.includes(name)) return prev.filter((item) => item !== name)
+      if (prev.length >= 8) return prev
+      return [...prev, name]
+    })
+  }
+
   if (!redditConfigured()) {
     return (
       <p className="notice">
@@ -137,14 +170,14 @@ export default function ResearchView() {
   return (
     <section className="stack research">
       <p className="quiet">
-        Light Reddit scan for your rostered names. Pick subreddits and players, then search — nothing
-        runs until you do.
+        Search uses the Reddit archive (Arctic Shift) — no Reddit app. Pick subreddits and players,
+        then search.
       </p>
 
       <div className="research-filters">
-        <div>
+        <div className="research-filters__group">
           <p className="research-filters__label">Subreddits</p>
-          <div className="chips chips--sub" role="group" aria-label="Subreddits">
+          <div className="chips research-filters__chips" role="group" aria-label="Subreddits">
             {SUBREDDITS.map((sub) => (
               <button
                 key={sub.id}
@@ -159,27 +192,42 @@ export default function ResearchView() {
           </div>
         </div>
 
-        <div>
+        <div className="research-filters__group">
           <p className="research-filters__label">Players ({players.length}/8)</p>
-          <div className="chips chips--sub research-filters__players" role="group" aria-label="Players">
-            {rosterNames.map((name) => (
+          <div className="chips research-filters__chips" role="group" aria-label="Players">
+            <button
+              type="button"
+              className="chip"
+              onClick={() => setPickerOpen(true)}
+              disabled={rosterOptions.length === 0}
+            >
+              {players.length ? 'Edit players' : 'Select players'}
+            </button>
+            {players.map((name) => (
               <button
                 key={name}
                 type="button"
-                className={players.includes(name) ? 'chip chip--on' : 'chip'}
-                aria-pressed={players.includes(name)}
-                disabled={!players.includes(name) && players.length >= 8}
-                onClick={() => setPlayers((prev) => toggleValue(prev, name))}
+                className="chip chip--on"
+                onClick={() => togglePlayer(name)}
+                aria-label={`Remove ${name}`}
               >
                 {name}
+                <span className="research-filters__remove" aria-hidden="true">
+                  ×
+                </span>
               </button>
             ))}
+            {players.length ? (
+              <button type="button" className="chip" onClick={() => setPlayers([])}>
+                Clear
+              </button>
+            ) : null}
           </div>
         </div>
 
-        <div>
+        <div className="research-filters__group">
           <p className="research-filters__label">Sort</p>
-          <div className="chips chips--sub" role="group" aria-label="Sort">
+          <div className="chips research-filters__chips" role="group" aria-label="Sort">
             {(['new', 'relevance', 'top', 'hot'] as Sort[]).map((value) => (
               <button
                 key={value}
@@ -197,19 +245,74 @@ export default function ResearchView() {
         <div className="research-filters__actions">
           <button
             type="button"
-            className="btn btn--primary"
+            className="btn btn--primary btn--sm"
             disabled={subs.length === 0 || players.length === 0 || query.isFetching}
             onClick={onSearch}
           >
             {query.isFetching ? 'Searching…' : 'Search Reddit'}
           </button>
+        </div>
+      </div>
+
+      <Modal
+        title={`Select players (${players.length}/8)`}
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        wide
+      >
+        <label className="field">
+          <span className="field__label">Filter</span>
+          <input
+            className="input"
+            type="search"
+            value={playerFilter}
+            onChange={(event) => setPlayerFilter(event.target.value)}
+            placeholder="Search name or position"
+            autoComplete="off"
+          />
+        </label>
+
+        <div className="research-player-list" role="group" aria-label="Roster players">
+          {filteredRoster.length === 0 ? (
+            <p className="quiet">No players match that filter.</p>
+          ) : (
+            filteredRoster.map((player) => {
+              const selected = players.includes(player.name)
+              const atCap = !selected && players.length >= 8
+              return (
+                <button
+                  key={player.name}
+                  type="button"
+                  className={
+                    selected
+                      ? 'research-player-option research-player-option--on'
+                      : 'research-player-option'
+                  }
+                  aria-pressed={selected}
+                  disabled={atCap}
+                  onClick={() => togglePlayer(player.name)}
+                >
+                  <span className="research-player-option__name">{player.name}</span>
+                  {player.position ? (
+                    <span className="research-player-option__pos">{player.position}</span>
+                  ) : null}
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        <div className="modal__actions">
+          <button type="button" className="btn btn--primary" onClick={() => setPickerOpen(false)}>
+            Done
+          </button>
           {players.length ? (
             <button type="button" className="btn btn--ghost" onClick={() => setPlayers([])}>
-              Clear players
+              Clear selection
             </button>
           ) : null}
         </div>
-      </div>
+      </Modal>
 
       {!submitted ? (
         <p className="notice">Select at least one subreddit and one player, then search.</p>

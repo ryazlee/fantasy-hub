@@ -70,8 +70,8 @@ export async function searchRedditPosts(opts: {
   }
 }
 
-/** Build an OR query of quoted player names (Reddit search). */
+/** Join player names for archive search (worker splits on | / OR / commas). */
 export function playerSearchQuery(names: string[]): string {
   const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
-  return unique.map((name) => `"${name.replace(/"/g, '')}"`).join(' OR ')
+  return unique.map((name) => name.replace(/["|]/g, ' ').trim()).filter(Boolean).join(' | ')
 }

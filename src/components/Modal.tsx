@@ -8,9 +8,10 @@ type ModalProps = {
   open: boolean
   onClose: () => void
   children: ReactNode
+  wide?: boolean
 }
 
-export default function Modal({ title, open, onClose, children }: ModalProps) {
+export default function Modal({ title, open, onClose, children, wide }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -57,7 +58,7 @@ export default function Modal({ title, open, onClose, children }: ModalProps) {
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal"
+        className={wide ? 'modal modal--wide' : 'modal'}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

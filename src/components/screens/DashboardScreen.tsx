@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import AppHeader from '../AppHeader'
@@ -19,21 +19,47 @@ const VIEWS: { id: DashboardView; to: string; label: string; end?: boolean }[] =
   { id: 'research', to: '/dashboard/research', label: 'Research' },
 ]
 
+function updatedDelta(timestamp: number, now: number): string {
+  if (!timestamp) return ''
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1000))
+  if (seconds < 45) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 export default function DashboardScreen() {
-  const { data, isPending, isError, refetch, isFetching } = useDashboard()
+  const { data, isPending, isError, refetch, isFetching, dataUpdatedAt } = useDashboard()
   const connected = hasAnyProvider()
   const gamesQuery = useNflGames(connected)
   const location = useLocation()
   const showOpponentsToggle = location.pathname.endsWith('/live')
+  const [now, setNow] = useState(() => Date.now())
 
   const week =
     data?.teams.find((row) => row.league.sport === 'nfl')?.league.scoringPeriod ??
     data?.teams[0]?.league.scoringPeriod
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date())
+  const lastUpdatedAt = Math.max(dataUpdatedAt, gamesQuery.dataUpdatedAt)
+  const ago = connected ? updatedDelta(lastUpdatedAt, now) : ''
+  const refreshing = isFetching || gamesQuery.isFetching
 
   useEffect(() => {
     applyShareMeta('Dashboard')
   }, [])
+
+  useEffect(() => {
+    if (!lastUpdatedAt) return
+    setNow(Date.now())
+  }, [lastUpdatedAt])
+
+  useEffect(() => {
+    if (!connected || !lastUpdatedAt) return
+    const id = window.setInterval(() => setNow(Date.now()), 15_000)
+    return () => window.clearInterval(id)
+  }, [connected, lastUpdatedAt])
 
   return (
     <div className="app-shell">
@@ -42,16 +68,24 @@ export default function DashboardScreen() {
         subtitle={headerPeriodLabel(week, weekday)}
         extra={
           <>
-            <Button
-              label="Refresh"
-              variant="ghost"
-              icon={<RefreshCw size={16} />}
-              onClick={() => {
-                void refetch()
-                void gamesQuery.refetch()
-              }}
-              disabled={isFetching || gamesQuery.isFetching}
-            />
+            {connected ? (
+              <button
+                type="button"
+                className="btn btn--ghost header-refresh"
+                aria-label={ago ? `Refresh · updated ${ago}` : 'Refresh'}
+                title={ago ? `Updated ${ago}` : 'Refresh'}
+                disabled={refreshing}
+                onClick={() => {
+                  void refetch()
+                  void gamesQuery.refetch()
+                }}
+              >
+                <span className="btn__icon">
+                  <RefreshCw size={16} className={refreshing ? 'header-refresh__spin' : undefined} />
+                </span>
+                {ago ? <span className="header-refresh__ago">{ago}</span> : null}
+              </button>
+            ) : null}
             <Button label="Settings" variant="ghost" to="/settings" />
           </>
         }
