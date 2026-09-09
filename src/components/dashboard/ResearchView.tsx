@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Modal from '../Modal'
-import { useSavedConfig } from '../../hooks/useSavedConfig'
+import PlayerPhoto from '../PlayerPhoto'
+import { positionTone } from '../../domain/positions'
+import type { DashboardTeam, FantasyRosterPlayer, Sport } from '../../domain/types'
 import { queryKeys } from '../../hooks/queryKeys'
 import {
   playerSearchQuery,
@@ -26,11 +28,78 @@ const SUBREDDITS = [
   { id: 'fantasyfootballers', label: 'r/fantasyfootballers' },
 ] as const
 
+const PLAYER_CAP = 8
+
 type Sort = ResearchSort
+
+type TeamOn = {
+  teamId: string
+  label: string
+  starter: boolean
+}
 
 type RosterOption = {
   name: string
   position: string
+  sport: Sport
+  player: FantasyRosterPlayer
+  teams: TeamOn[]
+}
+
+type FantasyTeamOption = {
+  teamId: string
+  label: string
+}
+
+function playerMergeKey(player: FantasyRosterPlayer): string {
+  const id = player.canonicalPlayerId.trim()
+  if (id) return `id:${id}`
+  return `fb:${player.name.trim().toLowerCase()}|${player.proTeam.trim().toUpperCase()}|${player.position.trim().toUpperCase()}`
+}
+
+function teamDisplayName(team: DashboardTeam, all: DashboardTeam[]): string {
+  const clash = all.filter((row) => row.team.name === team.team.name).length > 1
+  return clash ? `${team.team.name} (${team.league.name})` : team.team.name
+}
+
+function collectRoster(teams: DashboardTeam[]): RosterOption[] {
+  const buckets = new Map<string, RosterOption>()
+  for (const team of teams) {
+    const label = teamDisplayName(team, teams)
+    for (const player of team.roster) {
+      const name = player.name.trim()
+      if (!name) continue
+      const key = playerMergeKey(player)
+      const existing = buckets.get(key)
+      const on: TeamOn = { teamId: team.team.id, label, starter: player.starter }
+      if (existing) {
+        if (!existing.teams.some((row) => row.teamId === on.teamId)) existing.teams.push(on)
+        if (player.starter && !existing.player.starter) existing.player = player
+        continue
+      }
+      buckets.set(key, {
+        name,
+        position: player.position.trim(),
+        sport: team.league.sport,
+        player,
+        teams: [on],
+      })
+    }
+  }
+  return [...buckets.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  )
+}
+
+function teamPlayers(options: RosterOption[], teamId: string): RosterOption[] {
+  return options
+    .filter((player) => player.teams.some((team) => team.teamId === teamId))
+    .sort(
+      (a, b) =>
+        Number(b.teams.some((team) => team.teamId === teamId && team.starter)) -
+          Number(a.teams.some((team) => team.teamId === teamId && team.starter)) ||
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    )
 }
 
 function toggleValue(list: string[], value: string): string[] {
@@ -67,7 +136,6 @@ function PostCard({ post }: { post: RedditPost }) {
 
 export default function ResearchView() {
   const { teams } = useOutletContext<DashboardContext>()
-  const showBench = useSavedConfig().prefs.showBench
   const [initial] = useState(loadResearchFilters)
   const [subs, setSubs] = useState<string[]>(initial.subs)
   const [players, setPlayers] = useState<string[]>(initial.players)
@@ -80,29 +148,20 @@ export default function ResearchView() {
     sort: Sort
   } | null>(null)
 
-  const rosterOptions = useMemo(() => {
-    const byName = new Map<string, RosterOption>()
-    for (const team of teams) {
-      for (const player of team.roster) {
-        if (!showBench && !player.starter) continue
-        const name = player.name.trim()
-        if (!name) continue
-        const key = name.toLowerCase()
-        if (byName.has(key)) continue
-        byName.set(key, { name, position: player.position.trim() })
-      }
-    }
-    return [...byName.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-    )
-  }, [teams, showBench])
+  const rosterOptions = useMemo(() => collectRoster(teams), [teams])
+  const fantasyTeams = useMemo<FantasyTeamOption[]>(
+    () => teams.map((team) => ({ teamId: team.team.id, label: teamDisplayName(team, teams) })),
+    [teams],
+  )
 
   const filteredRoster = useMemo(() => {
     const q = playerFilter.trim().toLowerCase()
     if (!q) return rosterOptions
     return rosterOptions.filter(
       (player) =>
-        player.name.toLowerCase().includes(q) || player.position.toLowerCase().includes(q),
+        player.name.toLowerCase().includes(q) ||
+        player.position.toLowerCase().includes(q) ||
+        player.teams.some((team) => team.label.toLowerCase().includes(q)),
     )
   }, [rosterOptions, playerFilter])
 
@@ -142,7 +201,7 @@ export default function ResearchView() {
   function onSearch() {
     if (subs.length === 0) return
     if (players.length === 0) return
-    if (players.length > 8) return
+    if (players.length > PLAYER_CAP) return
     setSubmitted({
       query: playerSearchQuery(players),
       subreddits: subs,
@@ -153,9 +212,29 @@ export default function ResearchView() {
   function togglePlayer(name: string) {
     setPlayers((prev) => {
       if (prev.includes(name)) return prev.filter((item) => item !== name)
-      if (prev.length >= 8) return prev
+      if (prev.length >= PLAYER_CAP) return prev
       return [...prev, name]
     })
+  }
+
+  function toggleTeam(teamId: string) {
+    const pick = teamPlayers(rosterOptions, teamId)
+      .slice(0, PLAYER_CAP)
+      .map((player) => player.name)
+    if (pick.length === 0) return
+    setPlayers((prev) => {
+      const already =
+        pick.every((name) => prev.includes(name)) && prev.every((name) => pick.includes(name))
+      return already ? [] : pick
+    })
+  }
+
+  function teamChipOn(teamId: string): boolean {
+    const pick = teamPlayers(rosterOptions, teamId)
+      .slice(0, PLAYER_CAP)
+      .map((player) => player.name)
+    if (pick.length === 0) return false
+    return pick.every((name) => players.includes(name)) && players.every((name) => pick.includes(name))
   }
 
   if (!redditConfigured()) {
@@ -193,7 +272,7 @@ export default function ResearchView() {
         </div>
 
         <div className="research-filters__group">
-          <p className="research-filters__label">Players ({players.length}/8)</p>
+          <p className="research-filters__label">Players ({players.length}/{PLAYER_CAP})</p>
           <div className="chips research-filters__chips" role="group" aria-label="Players">
             <button
               type="button"
@@ -255,7 +334,7 @@ export default function ResearchView() {
       </div>
 
       <Modal
-        title={`Select players (${players.length}/8)`}
+        title={`Select players (${players.length}/${PLAYER_CAP})`}
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         wide
@@ -267,21 +346,43 @@ export default function ResearchView() {
             type="search"
             value={playerFilter}
             onChange={(event) => setPlayerFilter(event.target.value)}
-            placeholder="Search name or position"
+            placeholder="Search name, position, or team"
             autoComplete="off"
           />
         </label>
+
+        {fantasyTeams.length > 0 ? (
+          <div className="research-player-teams">
+            <p className="research-filters__label">Select a fantasy team</p>
+            <div className="chips research-filters__chips" role="group" aria-label="Fantasy teams">
+              {fantasyTeams.map((team) => (
+                <button
+                  key={team.teamId}
+                  type="button"
+                  className={teamChipOn(team.teamId) ? 'chip chip--on' : 'chip'}
+                  aria-pressed={teamChipOn(team.teamId)}
+                  title={`Select players on ${team.label}`}
+                  onClick={() => toggleTeam(team.teamId)}
+                >
+                  {team.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="research-player-list" role="group" aria-label="Roster players">
           {filteredRoster.length === 0 ? (
             <p className="quiet">No players match that filter.</p>
           ) : (
-            filteredRoster.map((player) => {
-              const selected = players.includes(player.name)
-              const atCap = !selected && players.length >= 8
+            filteredRoster.map((option) => {
+              const selected = players.includes(option.name)
+              const atCap = !selected && players.length >= PLAYER_CAP
+              const allBench = option.teams.every((team) => !team.starter)
+              const tone = positionTone(option.position)
               return (
                 <button
-                  key={player.name}
+                  key={playerMergeKey(option.player)}
                   type="button"
                   className={
                     selected
@@ -290,12 +391,39 @@ export default function ResearchView() {
                   }
                   aria-pressed={selected}
                   disabled={atCap}
-                  onClick={() => togglePlayer(player.name)}
+                  onClick={() => togglePlayer(option.name)}
                 >
-                  <span className="research-player-option__name">{player.name}</span>
-                  {player.position ? (
-                    <span className="research-player-option__pos">{player.position}</span>
-                  ) : null}
+                  <span className="research-player-option__who">
+                    <PlayerPhoto player={option.player} sport={option.sport} size={32} />
+                    <span className="research-player-option__text">
+                      <span className="research-player-option__identity">
+                        <span className="research-player-option__name">{option.name}</span>
+                        {allBench ? (
+                          <span className="roster-flag roster-flag--bench" title="Bench">
+                            B
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="research-player-option__meta">
+                        {option.position ? (
+                          <span className={['pos-label', tone].filter(Boolean).join(' ')}>
+                            {option.position}
+                          </span>
+                        ) : null}
+                        {option.teams.map((team, index) => (
+                          <Fragment key={team.teamId}>
+                            {option.position || index > 0 ? ' · ' : null}
+                            {team.label}
+                            {!team.starter && !allBench ? (
+                              <span className="roster-flag roster-flag--bench" title="Bench">
+                                B
+                              </span>
+                            ) : null}
+                          </Fragment>
+                        ))}
+                      </span>
+                    </span>
+                  </span>
                 </button>
               )
             })

@@ -1,4 +1,5 @@
 import { useOutletContext } from 'react-router-dom'
+import { formatPlacement } from '../../domain/standings'
 import { providerLabel } from '../../domain/sportDisplay'
 import type { DashboardContext } from './context'
 import MatchupScoreline from './MatchupScoreline'
@@ -44,10 +45,12 @@ export default function LeaguesView() {
                         teamLogoUrl={pair.home.logoUrl}
                         teamTo={teamPath(pair.home.id)}
                         teamMine={homeMine}
+                        teamPlace={formatPlacement(pair.home)}
                         opponentName={pair.away?.name ?? 'No matchup'}
                         opponentLogoUrl={pair.away?.logoUrl}
                         opponentTo={pair.away ? teamPath(pair.away.id) : undefined}
                         opponentMine={awayMine}
+                        opponentPlace={pair.away ? formatPlacement(pair.away) : undefined}
                         points={pair.home.points}
                         opponentPoints={pair.away?.points}
                         emptyOpponent={!pair.away}

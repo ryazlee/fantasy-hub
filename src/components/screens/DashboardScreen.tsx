@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Settings } from 'lucide-react'
 import AppHeader from '../AppHeader'
-import Button from '../Button'
-import PrefToggle from '../dashboard/PrefToggle'
+import OverflowMenu, { type OverflowMenuItem } from '../OverflowMenu'
+import WeekSelect from '../WeekSelect'
 import { useDashboard, useNflGames } from '../../hooks/useDashboard'
-import { headerPeriodLabel } from '../../domain/sportDisplay'
+import { useSavedConfig } from '../../hooks/useSavedConfig'
 import { applyShareMeta } from '../../utils/shareMeta'
-import { hasAnyProvider, loadDismissedWarnings, dismissWarning, savePrefs } from '../../utils/storage'
+import {
+  hasAnyProvider,
+  loadDismissedWarnings,
+  dismissWarning,
+  savePrefs,
+  type DashboardPrefs,
+} from '../../utils/storage'
 import type { DashboardView } from '../../domain/types'
 
 const VIEWS: { id: DashboardView; to: string; label: string; end?: boolean }[] = [
@@ -30,18 +36,76 @@ function updatedDelta(timestamp: number, now: number): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+function viewFromPath(pathname: string): DashboardView {
+  if (pathname.endsWith('/matchups')) return 'matchups'
+  if (pathname.endsWith('/leagues')) return 'leagues'
+  if (pathname.endsWith('/players')) return 'players'
+  if (pathname.endsWith('/live')) return 'live'
+  if (pathname.endsWith('/research')) return 'research'
+  return 'teams'
+}
+
+function prefToggle(
+  label: string,
+  pref: 'showBench' | 'highlightLive' | 'showOpponents',
+  prefs: DashboardPrefs,
+): OverflowMenuItem {
+  return {
+    type: 'toggle',
+    label,
+    checked: prefs[pref],
+    onChange: (next) => savePrefs({ [pref]: next }),
+  }
+}
+
+function overflowItems(view: DashboardView, prefs: DashboardPrefs): OverflowMenuItem[] {
+  if (view === 'teams') return [prefToggle('Show bench', 'showBench', prefs)]
+  if (view === 'matchups') {
+    return [
+      prefToggle('Show bench', 'showBench', prefs),
+      prefToggle('Highlight live', 'highlightLive', prefs),
+    ]
+  }
+  if (view === 'players') {
+    return [
+      prefToggle('Show bench', 'showBench', prefs),
+      prefToggle('Highlight live', 'highlightLive', prefs),
+      {
+        type: 'select',
+        label: 'Group by',
+        value: prefs.playersGroupBy,
+        options: [
+          { value: 'position', label: 'Position' },
+          { value: 'fantasy', label: 'Fantasy team' },
+        ],
+        onChange: (next) => savePrefs({ playersGroupBy: next === 'fantasy' ? 'fantasy' : 'position' }),
+      },
+    ]
+  }
+  if (view === 'live') {
+    return [
+      prefToggle('Show bench', 'showBench', prefs),
+      prefToggle('Highlight live', 'highlightLive', prefs),
+      prefToggle('Show opponents', 'showOpponents', prefs),
+    ]
+  }
+  return []
+}
+
 export default function DashboardScreen() {
   const { data, isPending, isError, refetch, isFetching, dataUpdatedAt } = useDashboard()
   const connected = hasAnyProvider()
-  const gamesQuery = useNflGames(connected)
   const location = useLocation()
-  const showOpponentsToggle = location.pathname.endsWith('/live')
+  const view = viewFromPath(location.pathname)
+  const prefs = useSavedConfig().prefs
+  const gamesQuery = useNflGames(connected, prefs.scoringWeek)
+  const menuItems = overflowItems(view, prefs)
   const [now, setNow] = useState(() => Date.now())
   const [dismissedWarnings, setDismissedWarnings] = useState(loadDismissedWarnings)
 
-  const week =
-    data?.teams.find((row) => row.league.sport === 'nfl')?.league.scoringPeriod ??
-    data?.teams[0]?.league.scoringPeriod
+  const currentWeek = data?.currentWeek ?? 1
+  const weekCount = data?.weekCount ?? 18
+  const viewWeek = prefs.scoringWeek ?? data?.viewWeek ?? currentWeek
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date())
   const lastUpdatedAt = Math.max(dataUpdatedAt, gamesQuery.dataUpdatedAt)
   const ago = connected ? updatedDelta(lastUpdatedAt, now) : ''
@@ -66,7 +130,22 @@ export default function DashboardScreen() {
     <div className="app-shell">
       <AppHeader
         title="Fantasy Hub"
-        subtitle={headerPeriodLabel(week, weekday)}
+        subtitle={
+          connected ? (
+            <span className="header-weekline">
+              <span>{weekday}</span>
+              <span aria-hidden>,</span>
+              <WeekSelect
+                week={viewWeek}
+                weekCount={weekCount}
+                currentWeek={currentWeek}
+                onChange={(next) => savePrefs({ scoringWeek: next === currentWeek ? null : next })}
+              />
+            </span>
+          ) : (
+            weekday
+          )
+        }
         extra={
           <>
             {connected ? (
@@ -87,7 +166,14 @@ export default function DashboardScreen() {
                 {ago ? <span className="header-refresh__ago">{ago}</span> : null}
               </button>
             ) : null}
-            <Button label="Settings" variant="ghost" to="/settings" />
+            <Link
+              to="/settings"
+              className="theme-toggle"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings size={18} strokeWidth={2} aria-hidden />
+            </Link>
           </>
         }
       />
@@ -130,24 +216,27 @@ export default function DashboardScreen() {
           ) : null}
 
           {connected ? (
-            <nav className="chips" aria-label="Dashboard views">
-              {VIEWS.map((view) => (
-                <NavLink
-                  key={view.id}
-                  to={view.to}
-                  end={view.end}
-                  className={({ isActive }) => (isActive ? 'chip chip--on' : 'chip')}
-                  onClick={() => savePrefs({ dashboardView: view.id })}
-                >
-                  {view.label}
-                </NavLink>
-              ))}
-            </nav>
-          ) : null}
-
-          {connected && data && data.teams.length > 0 && showOpponentsToggle ? (
-            <div className="chips chips--sub" role="group" aria-label="Display options">
-              <PrefToggle pref="showOpponents" label="Opponents" />
+            <div className="chips-bar">
+              <nav className="chips" aria-label="Dashboard views">
+                {VIEWS.map((view) => (
+                  <NavLink
+                    key={view.id}
+                    to={view.to}
+                    end={view.end}
+                    className={({ isActive }) => (isActive ? 'chip chip--on' : 'chip')}
+                    onClick={() => savePrefs({ dashboardView: view.id })}
+                  >
+                    {view.label}
+                  </NavLink>
+                ))}
+              </nav>
+              {menuItems.length > 0 ? (
+                <OverflowMenu
+                  key={view}
+                  label={`${VIEWS.find((row) => row.id === view)?.label ?? 'View'} options`}
+                  items={menuItems}
+                />
+              ) : null}
             </div>
           ) : null}
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { positionTone } from '../../domain/positions'
 import { compareSlots } from '../../domain/rosterSlots'
@@ -146,7 +146,7 @@ export default function PlayersView() {
   const prefs = useSavedConfig().prefs
   const showBench = prefs.showBench
   const highlightLive = prefs.highlightLive
-  const [groupBy, setGroupBy] = useState<GroupBy>('position')
+  const groupBy = prefs.playersGroupBy
 
   const groups = useMemo(() => {
     const flat = flattenPlayers(teams, showBench)
@@ -187,25 +187,6 @@ export default function PlayersView() {
 
   return (
     <section className="stack">
-      <div className="chips chips--sub" role="group" aria-label="Group players">
-        <button
-          type="button"
-          className={groupBy === 'position' ? 'chip chip--on' : 'chip'}
-          aria-pressed={groupBy === 'position'}
-          onClick={() => setGroupBy('position')}
-        >
-          Position
-        </button>
-        <button
-          type="button"
-          className={groupBy === 'fantasy' ? 'chip chip--on' : 'chip'}
-          aria-pressed={groupBy === 'fantasy'}
-          onClick={() => setGroupBy('fantasy')}
-        >
-          Fantasy team
-        </button>
-      </div>
-
       {groups.map((group) => (
         <div key={group.key} className="roster-group">
           <p

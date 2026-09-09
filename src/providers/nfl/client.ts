@@ -16,6 +16,15 @@ export async function espnGet<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export function scoreboardUrl(): string {
-  return SCOREBOARD
+export function scoreboardUrl(week?: number): string {
+  if (!week || week < 1) return SCOREBOARD
+  const params = new URLSearchParams()
+  if (week <= 18) {
+    params.set('seasontype', '2')
+    params.set('week', String(week))
+  } else {
+    params.set('seasontype', '3')
+    params.set('week', String(week - 18))
+  }
+  return `${SCOREBOARD}?${params}`
 }

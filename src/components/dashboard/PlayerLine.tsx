@@ -66,7 +66,17 @@ export default function PlayerLine({
   const gameLabel = showGame ? playerGameLabel(game) : ''
   const injury = player.injuryStatus
   const detailNode = detail ? renderDetail(detail, detailTo) : null
-  const hasMeta = Boolean(player.position || player.proTeam || detailNode || gameLabel)
+  const positionPart = player.position ? (
+    <span className="pos-label">{player.position}</span>
+  ) : null
+  const teamPart = player.proTeam || null
+  const gamePart = gameLabel ? <span className="roster-row__game">{gameLabel}</span> : null
+  const meta = (
+    mirror
+      ? [gamePart, detailNode, teamPart, positionPart]
+      : [positionPart, teamPart, detailNode, gamePart]
+  ).filter(Boolean)
+  const hasMeta = meta.length > 0
   const playerHref = sleeperPlayerUrl(sport, player.canonicalPlayerId)
   const tone = positionTone(player.position)
   const rowClass = [
@@ -78,11 +88,6 @@ export default function PlayerLine({
   ]
     .filter(Boolean)
     .join(' ')
-
-  const meta: ReactNode[] = []
-  if (player.position) meta.push(<span className="pos-label">{player.position}</span>)
-  if (player.proTeam) meta.push(player.proTeam)
-  if (detailNode) meta.push(detailNode)
 
   const playerName = playerHref ? (
     <a
@@ -123,12 +128,6 @@ export default function PlayerLine({
                   {part}
                 </Fragment>
               ))}
-              {gameLabel ? (
-                <span className="roster-row__game">
-                  {meta.length > 0 ? ' · ' : null}
-                  {gameLabel}
-                </span>
-              ) : null}
             </span>
           ) : null}
         </span>

@@ -21,6 +21,11 @@ export interface FantasyTeam {
   name: string
   ownerName?: string
   logoUrl?: string
+  rank?: number
+  wins?: number
+  losses?: number
+  ties?: number
+  pointsFor?: number
 }
 
 export interface FantasyMatchup {
@@ -75,6 +80,10 @@ export type LeagueSlateSide = {
   logoUrl?: string
   points: number
   projectedPoints?: number
+  rank?: number
+  wins?: number
+  losses?: number
+  ties?: number
 }
 
 export type LeagueSlateMatchup = {
@@ -112,6 +121,9 @@ export type DashboardData = {
   teams: DashboardTeam[]
   leagues: LeagueSlate[]
   errors: ProviderError[]
+  currentWeek: number
+  weekCount: number
+  viewWeek: number
 }
 
 export type TeamDetail = {

@@ -13,8 +13,6 @@ import {
   espnLeagues,
   espnLeaguesDetail,
   loadConfig,
-  savePrefs,
-  type DashboardPrefs,
 } from '../../utils/storage'
 
 function ProviderLabel({
@@ -42,10 +40,6 @@ export default function SettingsScreen() {
   useEffect(() => {
     applyShareMeta('Settings')
   }, [])
-
-  function updatePrefs(patch: Partial<DashboardPrefs>) {
-    setConfig(savePrefs(patch))
-  }
 
   function disconnect(provider: ProviderName) {
     const next = disconnectProvider(provider)
@@ -102,35 +96,6 @@ export default function SettingsScreen() {
                   <Button label="Connect" variant="ghost" to="/" />
                 )}
               </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Dashboard">
-            <div className="stack">
-              <label className="settings-row">
-                <span>Show bench players</span>
-                <input
-                  type="checkbox"
-                  checked={config.prefs.showBench}
-                  onChange={(event) => updatePrefs({ showBench: event.target.checked })}
-                />
-              </label>
-              <label className="settings-row">
-                <span>Highlight live players</span>
-                <input
-                  type="checkbox"
-                  checked={config.prefs.highlightLive}
-                  onChange={(event) => updatePrefs({ highlightLive: event.target.checked })}
-                />
-              </label>
-              <label className="settings-row">
-                <span>Show opponent players on Live</span>
-                <input
-                  type="checkbox"
-                  checked={config.prefs.showOpponents}
-                  onChange={(event) => updatePrefs({ showOpponents: event.target.checked })}
-                />
-              </label>
             </div>
           </SectionCard>
         </div>

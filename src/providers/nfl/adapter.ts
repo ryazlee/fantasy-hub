@@ -30,9 +30,9 @@ function statusFrom(state: string | undefined): NFLGameStatus {
   return 'scheduled'
 }
 
-export async function getNflScoreboard(): Promise<NFLGame[]> {
+export async function getNflScoreboard(week?: number): Promise<NFLGame[]> {
   try {
-    const data = await espnGet<EspnScoreboard>(scoreboardUrl())
+    const data = await espnGet<EspnScoreboard>(scoreboardUrl(week))
     return (data.events ?? []).flatMap((event) => {
       const competition = event.competitions?.[0]
       if (!event.id || !competition) return []

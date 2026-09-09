@@ -14,11 +14,13 @@ import { EspnError } from '../providers/espn/client'
 import {
   loadSleeperLeagueBundle,
   loadSleeperLeagues,
+  loadNflSeasonWeek,
   rawLeagueIdFrom,
 } from '../providers/sleeper/adapter'
 import { SleeperError } from '../providers/sleeper/client'
 import { loadYahooLeagueBundles, loadYahooRoster } from '../providers/yahoo/adapter'
 import { onYahooSession, YahooError } from '../providers/yahoo/client'
+import { clampWeek } from '../domain/weeks'
 import { espnLeagues, loadConfig, loadYahooSession, saveYahooSession } from '../utils/storage'
 
 type LeagueBundle = {
@@ -41,6 +43,24 @@ function pairKey(teamId: string, opponentTeamId: string): string {
   return teamId < opponentTeamId ? `${teamId}\0${opponentTeamId}` : `${opponentTeamId}\0${teamId}`
 }
 
+function slateSide(
+  team: FantasyTeam,
+  points: number,
+  projectedPoints?: number,
+): LeagueSlate['matchups'][number]['home'] {
+  return {
+    id: team.id,
+    name: team.name,
+    logoUrl: team.logoUrl,
+    points,
+    projectedPoints,
+    rank: team.rank,
+    wins: team.wins,
+    losses: team.losses,
+    ties: team.ties,
+  }
+}
+
 function toLeagueSlate(bundle: LeagueBundle): LeagueSlate {
   const teamsById = new Map(bundle.teams.map((team) => [team.id, team]))
   const seen = new Set<string>()
@@ -54,22 +74,8 @@ function toLeagueSlate(bundle: LeagueBundle): LeagueSlate {
     if (!homeTeam) continue
     const awayTeam = row.opponentTeamId ? teamsById.get(row.opponentTeamId) : undefined
     matchups.push({
-      home: {
-        id: homeTeam.id,
-        name: homeTeam.name,
-        logoUrl: homeTeam.logoUrl,
-        points: row.points,
-        projectedPoints: row.projectedPoints,
-      },
-      away: awayTeam
-        ? {
-            id: awayTeam.id,
-            name: awayTeam.name,
-            logoUrl: awayTeam.logoUrl,
-            points: row.opponentPoints,
-            projectedPoints: row.opponentProjectedPoints,
-          }
-        : undefined,
+      home: slateSide(homeTeam, row.points, row.projectedPoints),
+      away: awayTeam ? slateSide(awayTeam, row.opponentPoints, row.opponentProjectedPoints) : undefined,
     })
   }
 
@@ -134,7 +140,7 @@ async function loadRosterFromAdapter(
   if (league.provider === 'espn') {
     const conn = espnConnectionFor(league)
     if (!conn) return []
-    const bundle = await loadEspnLeagueBundle(conn)
+    const bundle = await loadEspnLeagueBundle(conn, league.scoringPeriod)
     return bundle.rostersByTeamId.get(teamId) ?? []
   }
   if (league.provider === 'yahoo') {
@@ -182,12 +188,16 @@ async function detailFromSlate(slate: LeagueSlate, teamId: string): Promise<Team
   }
 }
 
-export async function loadDashboard(): Promise<DashboardData> {
+export async function loadDashboard(week?: number | null): Promise<DashboardData> {
   const config = loadConfig()
   const teams: DashboardTeam[] = []
   const leagues: LeagueSlate[] = []
   const errors: DashboardData['errors'] = []
   onYahooSession(saveYahooSession)
+
+  const season = await loadNflSeasonWeek().catch(() => ({ current: 1, count: 18 }))
+  const viewWeek =
+    week != null && week > 0 ? clampWeek(week, season.count) : season.current
 
   const sleeper = config.providers.sleeper
   if (sleeper) {
@@ -197,11 +207,11 @@ export async function loadDashboard(): Promise<DashboardData> {
         sleeperLeagues.map(async (league) => {
           const bundle = await loadSleeperLeagueBundle(
             rawLeagueIdFrom(league.id),
-            league.scoringPeriod,
+            viewWeek,
             league.sport,
             sleeper.userId,
           )
-          return { league, ...bundle }
+          return { league: { ...league, scoringPeriod: viewWeek }, ...bundle }
         }),
       )
 
@@ -219,7 +229,9 @@ export async function loadDashboard(): Promise<DashboardData> {
 
   const espn = espnLeagues(config)
   if (espn.length) {
-    const results = await Promise.allSettled(espn.map((league) => loadEspnLeagueBundle(league)))
+    const results = await Promise.allSettled(
+      espn.map((league) => loadEspnLeagueBundle(league, viewWeek)),
+    )
     let failed = 0
     for (const result of results) {
       if (result.status === 'fulfilled') {
@@ -249,7 +261,7 @@ export async function loadDashboard(): Promise<DashboardData> {
   const yahooSession = loadYahooSession()
   if (config.providers.yahoo && yahooSession) {
     try {
-      const bundles = await loadYahooLeagueBundles(yahooSession)
+      const bundles = await loadYahooLeagueBundles(yahooSession, viewWeek)
       for (const bundle of bundles) {
         collectOwned(teams, bundle)
         leagues.push(toLeagueSlate(bundle))
@@ -263,11 +275,11 @@ export async function loadDashboard(): Promise<DashboardData> {
     }
   }
 
-  return { teams, leagues, errors }
+  return { teams, leagues, errors, currentWeek: season.current, weekCount: season.count, viewWeek }
 }
 
-export async function loadTeamDetail(teamId: string): Promise<TeamDetail | null> {
-  const dashboard = await loadDashboard()
+export async function loadTeamDetail(teamId: string, week?: number | null): Promise<TeamDetail | null> {
+  const dashboard = await loadDashboard(week)
   const owned = dashboard.teams.find((item) => item.team.id === teamId)
   if (owned) {
     return {

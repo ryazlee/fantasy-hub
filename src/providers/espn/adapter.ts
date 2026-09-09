@@ -7,6 +7,7 @@ import type {
   Sport,
 } from '../../domain/types'
 import { injuryCode } from '../../domain/injury'
+import { withComputedRanks } from '../../domain/standings'
 import type { EspnConnection } from './parse'
 import { loadSleeperPlayers } from '../sleeper/adapter'
 import { EspnError, espnFantasyGet, espnLeagueUrl } from './client'
@@ -42,6 +43,21 @@ const EspnLeagueSchema = z.object({
         nickname: z.string().optional(),
         logo: z.string().optional(),
         primaryOwner: z.string().optional(),
+        playoffSeed: z.number().optional(),
+        rankCalculatedFinal: z.number().optional(),
+        record: z
+          .object({
+            overall: z
+              .object({
+                wins: z.number().optional(),
+                losses: z.number().optional(),
+                ties: z.number().optional(),
+                pointsFor: z.number().optional(),
+                pointsAgainst: z.number().optional(),
+              })
+              .optional(),
+          })
+          .optional(),
         roster: z
           .object({
             entries: z
@@ -212,8 +228,11 @@ async function readLeague(
   season: number,
   leagueId: string,
   views: string[],
+  scoringPeriodId?: number,
 ): Promise<EspnLeague> {
-  const raw = await espnFantasyGet<unknown>(espnLeagueUrl(sport, season, leagueId, views))
+  const raw = await espnFantasyGet<unknown>(
+    espnLeagueUrl(sport, season, leagueId, views, scoringPeriodId),
+  )
   const parsed = EspnLeagueSchema.safeParse(raw)
   if (!parsed.success) {
     throw new EspnError('We could not read that ESPN league.')
@@ -308,15 +327,19 @@ function mapRosterEntry(
   }
 }
 
-export async function loadEspnLeagueBundle(conn: EspnConnection): Promise<{
+export async function loadEspnLeagueBundle(
+  conn: EspnConnection,
+  weekOverride?: number,
+): Promise<{
   league: FantasyLeague
   teams: FantasyTeam[]
   matchups: FantasyMatchup[]
   rostersByTeamId: Map<string, FantasyRosterPlayer[]>
   ownedTeamIds: string[]
 }> {
-  const raw = await readLeague(conn.sport, conn.season, conn.leagueId, BUNDLE_VIEWS)
-  const scoringPeriod = scoringPeriodOf(raw)
+  const week = weekOverride && weekOverride > 0 ? weekOverride : undefined
+  const raw = await readLeague(conn.sport, conn.season, conn.leagueId, BUNDLE_VIEWS, week)
+  const scoringPeriod = week ?? scoringPeriodOf(raw)
   const league = mapLeague(raw, conn, scoringPeriod)
   const catalog = await loadSleeperPlayers(conn.sport)
   const byEspnId = buildEspnIdIndex(catalog)
@@ -331,12 +354,20 @@ export async function loadEspnLeagueBundle(conn: EspnConnection): Promise<{
   for (const team of raw.teams ?? []) {
     if (team.id == null) continue
     const id = teamKey(conn.leagueId, conn.season, team.id)
+    const overall = team.record?.overall
+    const seed = team.playoffSeed
+    const finalRank = team.rankCalculatedFinal
     teams.push({
       id,
       leagueId,
       name: teamName(team),
       ownerName: ownerName(team.primaryOwner, members),
       logoUrl: teamLogo(team.logo),
+      rank: seed && seed > 0 ? seed : finalRank && finalRank > 0 ? finalRank : undefined,
+      wins: overall?.wins,
+      losses: overall?.losses,
+      ties: overall?.ties,
+      pointsFor: overall?.pointsFor,
     })
     if (ownedRaw == null || team.id === ownedRaw) ownedTeamIds.push(id)
 
@@ -405,5 +436,11 @@ export async function loadEspnLeagueBundle(conn: EspnConnection): Promise<{
     })
   }
 
-  return { league, teams, matchups: mappedMatchups, rostersByTeamId, ownedTeamIds }
+  return {
+    league,
+    teams: withComputedRanks(teams),
+    matchups: mappedMatchups,
+    rostersByTeamId,
+    ownedTeamIds,
+  }
 }

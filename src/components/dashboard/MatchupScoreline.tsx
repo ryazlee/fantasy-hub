@@ -6,10 +6,12 @@ type MatchupScorelineProps = {
   teamLogoUrl?: string
   teamTo?: string
   teamMine?: boolean
+  teamPlace?: string
   opponentName: string
   opponentLogoUrl?: string
   opponentTo?: string
   opponentMine?: boolean
+  opponentPlace?: string
   points?: number
   opponentPoints?: number
   teamTally?: string
@@ -32,10 +34,13 @@ function whoClass(opts: {
   return parts.join(' ')
 }
 
-function whoLabel(name: string, mine?: boolean) {
+function whoLabel(name: string, mine?: boolean, place?: string) {
   return (
     <span className="h2h__id">
-      <span className="h2h__name">{name}</span>
+      <span className="h2h__who-text">
+        <span className="h2h__name">{name}</span>
+        {place ? <span className="h2h__place">{place}</span> : null}
+      </span>
       {mine ? <span className="h2h__you">You</span> : null}
     </span>
   )
@@ -46,10 +51,12 @@ export default function MatchupScoreline({
   teamLogoUrl,
   teamTo,
   teamMine = false,
+  teamPlace,
   opponentName,
   opponentLogoUrl,
   opponentTo,
   opponentMine = false,
+  opponentPlace,
   points,
   opponentPoints,
   teamTally,
@@ -71,7 +78,7 @@ export default function MatchupScoreline({
   const you = (
     <>
       {teamLogoUrl ? <img className="team-mark" src={teamLogoUrl} alt="" width={20} height={20} /> : null}
-      {whoLabel(teamName, teamMine)}
+      {whoLabel(teamName, teamMine, teamPlace)}
     </>
   )
 
@@ -80,7 +87,7 @@ export default function MatchupScoreline({
       {!emptyOpponent && opponentLogoUrl ? (
         <img className="team-mark" src={opponentLogoUrl} alt="" width={20} height={20} />
       ) : null}
-      {whoLabel(opponentName, opponentMine)}
+      {whoLabel(opponentName, opponentMine, emptyOpponent ? undefined : opponentPlace)}
     </>
   )
 

@@ -31,6 +31,13 @@ export type SleeperRoster = {
   reserve?: string[] | null
   taxi?: string[] | null
   metadata?: { team_name?: string } | null
+  settings?: {
+    wins?: number
+    losses?: number
+    ties?: number
+    fpts?: number
+    fpts_decimal?: number
+  }
 }
 
 export type SleeperLeagueUser = {
@@ -44,6 +51,8 @@ export type SleeperMatchup = {
   roster_id: number
   matchup_id: number | null
   points?: number
+  starters?: string[] | null
+  players?: string[] | null
   players_points?: Record<string, number>
 }
 

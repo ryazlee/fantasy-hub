@@ -8,6 +8,8 @@ import type {
 } from '../../domain/types'
 import { injuryCode } from '../../domain/injury'
 import { sleeperAvatarUrl } from '../../domain/media'
+import { withComputedRanks } from '../../domain/standings'
+import { nflWeekCount } from '../../domain/weeks'
 import { sleeperGet, SleeperError } from './client'
 import type {
   SleeperLeague,
@@ -118,6 +120,13 @@ function teamName(
   }
 }
 
+export async function loadNflSeasonWeek(): Promise<{ current: number; count: number }> {
+  const state = await sportState('nfl')
+  const current = Number(state?.display_week ?? state?.week ?? 1)
+  const week = Number.isFinite(current) && current > 0 ? Math.trunc(current) : 1
+  return { current: week, count: nflWeekCount(week) }
+}
+
 export async function loadSleeperLeagues(userId: string): Promise<FantasyLeague[]> {
   const leagues: FantasyLeague[] = []
 
@@ -138,6 +147,12 @@ export async function loadSleeperLeagues(userId: string): Promise<FantasyLeague[
   )
 
   return leagues
+}
+
+function sleeperSeasonPoints(settings: SleeperRoster['settings']): number | undefined {
+  if (!settings) return undefined
+  if (settings.fpts == null && settings.fpts_decimal == null) return undefined
+  return (settings.fpts ?? 0) + (settings.fpts_decimal ?? 0) / 100
 }
 
 export async function loadSleeperLeagueBundle(
@@ -162,19 +177,26 @@ export async function loadSleeperLeagueBundle(
   const leagueKey = leagueId(rawLeagueId)
   const ownedTeamIds: string[] = []
 
-  const teams: FantasyTeam[] = (rosters ?? []).map((roster) => {
-    const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined
-    const names = teamName(roster, owner)
-    const id = teamId(rawLeagueId, roster.roster_id)
-    if (roster.owner_id === userId) ownedTeamIds.push(id)
-    return {
-      id,
-      leagueId: leagueKey,
-      name: names.name,
-      ownerName: names.ownerName,
-      logoUrl: names.logoUrl,
-    }
-  })
+  const teams: FantasyTeam[] = withComputedRanks(
+    (rosters ?? []).map((roster) => {
+      const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined
+      const names = teamName(roster, owner)
+      const id = teamId(rawLeagueId, roster.roster_id)
+      if (roster.owner_id === userId) ownedTeamIds.push(id)
+      const settings = roster.settings
+      return {
+        id,
+        leagueId: leagueKey,
+        name: names.name,
+        ownerName: names.ownerName,
+        logoUrl: names.logoUrl,
+        wins: settings?.wins,
+        losses: settings?.losses,
+        ties: settings?.ties,
+        pointsFor: sleeperSeasonPoints(settings),
+      }
+    }),
+  )
 
   const matchupRows = matchups ?? []
   const mappedMatchups: FantasyMatchup[] = []
@@ -232,9 +254,10 @@ export async function loadSleeperLeagueBundle(
   const rostersByTeamId = new Map<string, FantasyRosterPlayer[]>()
   for (const roster of rosters ?? []) {
     const id = teamId(rawLeagueId, roster.roster_id)
-    const starters = roster.starters ?? []
+    const weekLineup = matchupRows.find((row) => row.roster_id === roster.roster_id)
+    const starters = weekLineup?.starters ?? roster.starters ?? []
     const starterSet = new Set(starters)
-    const points = matchupRows.find((row) => row.roster_id === roster.roster_id)?.players_points ?? {}
+    const points = weekLineup?.players_points ?? {}
     const mapped: FantasyRosterPlayer[] = []
 
     starters.forEach((playerId, index) => {
@@ -255,7 +278,7 @@ export async function loadSleeperLeagueBundle(
       })
     })
 
-    for (const playerId of roster.players ?? []) {
+    for (const playerId of weekLineup?.players ?? roster.players ?? []) {
       if (!playerId || starterSet.has(playerId)) continue
       const player = players[playerId]
       const slot = (roster.reserve ?? []).includes(playerId)

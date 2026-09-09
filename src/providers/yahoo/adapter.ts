@@ -6,6 +6,7 @@ import type {
   Sport,
 } from '../../domain/types'
 import { injuryCode } from '../../domain/injury'
+import { withComputedRanks } from '../../domain/standings'
 import { loadSleeperPlayers } from '../sleeper/adapter'
 import type { SleeperPlayer } from '../sleeper/types'
 import { yahooGet, YahooError } from './client'
@@ -61,7 +62,45 @@ function isOwnedTeam(team: Record<string, unknown>): boolean {
   )
 }
 
-export async function loadYahooLeagueBundles(session: string): Promise<LeagueBundle[]> {
+function applyYahooStanding(team: FantasyTeam, row: Record<string, unknown>): FantasyTeam {
+  const standing = yahooMerge(row.team_standings)
+  const totals = yahooMerge(standing.outcome_totals)
+  const rank = num(standing.rank)
+  return {
+    ...team,
+    rank: rank && rank > 0 ? rank : team.rank,
+    wins: num(totals.wins) ?? team.wins,
+    losses: num(totals.losses) ?? team.losses,
+    ties: num(totals.ties) ?? team.ties,
+    pointsFor: num(standing.points_for) ?? num(row.points_for) ?? team.pointsFor,
+  }
+}
+
+function mergeYahooStandings(teams: FantasyTeam[], standingsRaw: unknown): FantasyTeam[] {
+  if (standingsRaw == null) return teams
+  const league = yahooMerge(content(standingsRaw).league)
+  const standings = yahooMerge(league.standings)
+  const rows = [
+    ...yahooResources(standings.teams, 'team'),
+    ...yahooResources(league.teams, 'team'),
+  ]
+  if (rows.length === 0) return teams
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const row of rows) {
+    const key = text(row.team_key)
+    if (!key) continue
+    byId.set(teamId(key), row)
+  }
+  return teams.map((team) => {
+    const row = byId.get(team.id)
+    return row ? applyYahooStanding(team, row) : team
+  })
+}
+
+export async function loadYahooLeagueBundles(
+  session: string,
+  scoringPeriodOverride?: number,
+): Promise<LeagueBundle[]> {
   const year = new Date().getFullYear()
   const seasons = `${year - 1},${year}`
   // Yahoo documents users→games→leagues and users→games→teams, not games/leagues/teams.
@@ -86,7 +125,9 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
     for (const league of leagues) {
       const key = text(league.league_key)
       if (!key) continue
-      const scoringPeriod = num(league.current_week) ?? num(league.start_week) ?? 1
+      const nativeWeek = num(league.current_week) ?? num(league.start_week) ?? 1
+      const scoringPeriod =
+        scoringPeriodOverride && scoringPeriodOverride > 0 ? scoringPeriodOverride : nativeWeek
       const id = leagueId(key)
       const mappedLeague: FantasyLeague = {
         id,
@@ -129,10 +170,13 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
       }
       if (ownedTeamIds.length === 0 && teams.length === 1) ownedTeamIds.push(teams[0].id)
 
-      const scoreboardRaw = await yahooGet<unknown>(
-        `league/${encodeURIComponent(key)}/scoreboard;week=${scoringPeriod}`,
-        session,
-      )
+      const [scoreboardRaw, standingsRaw] = await Promise.all([
+        yahooGet<unknown>(
+          `league/${encodeURIComponent(key)}/scoreboard;week=${scoringPeriod}`,
+          session,
+        ),
+        yahooGet<unknown>(`league/${encodeURIComponent(key)}/standings`, session).catch(() => null),
+      ])
       const scoreboardLeague = yahooMerge(content(scoreboardRaw).league)
       const scoreboard = yahooMerge(scoreboardLeague.scoreboard)
       const matchupRows = yahooResources(scoreboard.matchups, 'matchup')
@@ -176,7 +220,10 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
 
       const rostersByTeamId = new Map<string, FantasyRosterPlayer[]>()
       for (const team of teams) {
-        const rosterRaw = await yahooGet<unknown>(`team/${encodeURIComponent(rawTeamKey(team.id))}/roster`, session)
+        const rosterRaw = await yahooGet<unknown>(
+          `team/${encodeURIComponent(rawTeamKey(team.id))}/roster;week=${scoringPeriod}`,
+          session,
+        )
         const rosterTeam = yahooMerge(content(rosterRaw).team)
         const roster = yahooMerge(rosterTeam.roster)
         const players = yahooResources(roster.players, 'player')
@@ -211,7 +258,13 @@ export async function loadYahooLeagueBundles(session: string): Promise<LeagueBun
         rostersByTeamId.set(team.id, mapped)
       }
 
-      bundles.push({ league: mappedLeague, teams, matchups, rostersByTeamId, ownedTeamIds })
+      bundles.push({
+        league: mappedLeague,
+        teams: withComputedRanks(mergeYahooStandings(teams, standingsRaw)),
+        matchups,
+        rostersByTeamId,
+        ownedTeamIds,
+      })
     }
   }
 
@@ -228,7 +281,10 @@ export async function loadYahooRoster(
 ): Promise<FantasyRosterPlayer[]> {
   const catalog = league.sport === 'nfl' ? await loadSleeperPlayers('nfl') : {}
   const byYahooId = buildYahooIdIndex(catalog)
-  const rosterRaw = await yahooGet<unknown>(`team/${encodeURIComponent(rawTeamKey(teamKey))}/roster`, session)
+  const rosterRaw = await yahooGet<unknown>(
+    `team/${encodeURIComponent(rawTeamKey(teamKey))}/roster;week=${league.scoringPeriod}`,
+    session,
+  )
   const rosterTeam = yahooMerge(content(rosterRaw).team)
   const players = yahooResources(yahooMerge(rosterTeam.roster).players, 'player')
   return players.map((player) => {

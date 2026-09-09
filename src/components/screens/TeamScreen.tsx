@@ -37,7 +37,14 @@ export default function TeamScreen() {
 
   return (
     <div className="app-shell">
-      <AppHeader title={data?.team.name ?? 'Team'} subtitle={data ? `${providerLabel(data.league.provider)} · ${data.league.name}` : undefined} />
+      <AppHeader
+        title={data?.team.name ?? 'Team'}
+        subtitle={
+          data
+            ? `${providerLabel(data.league.provider)} · ${data.league.name} · Week ${data.league.scoringPeriod}`
+            : undefined
+        }
+      />
       <main className="app-main">
         <div className="shell-inner page-stack">
           <p className="notice">

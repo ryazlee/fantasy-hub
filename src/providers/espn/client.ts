@@ -24,9 +24,13 @@ export function espnLeagueUrl(
   season: number,
   leagueId: string,
   views: string[],
+  scoringPeriodId?: number,
 ): string {
   const params = new URLSearchParams()
   for (const view of views) params.append('view', view)
+  if (scoringPeriodId != null && scoringPeriodId > 0) {
+    params.set('scoringPeriodId', String(scoringPeriodId))
+  }
   return `${BASE}/${espnGameSlug(sport)}/seasons/${season}/segments/0/leagues/${encodeURIComponent(leagueId)}?${params}`
 }
 

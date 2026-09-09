@@ -4,7 +4,7 @@ import ThemeToggle from './ThemeToggle'
 
 type AppHeaderProps = {
   title: string
-  subtitle?: string
+  subtitle?: ReactNode
   extra?: ReactNode
 }
 
@@ -27,7 +27,7 @@ export default function AppHeader({ title, subtitle, extra }: AppHeaderProps) {
               </Link>
             </h1>
           </div>
-          {subtitle ? <p className="subtitle">{subtitle}</p> : null}
+          {subtitle ? <div className="subtitle">{subtitle}</div> : null}
         </div>
         <div className="header-actions">
           {extra}

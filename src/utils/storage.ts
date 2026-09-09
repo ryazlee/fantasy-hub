@@ -11,13 +11,18 @@ export type EspnProviderConfig = {
   leagues: EspnConnection[]
 }
 
+export type PlayersGroupBy = 'position' | 'fantasy'
+
 export type DashboardPrefs = {
   showBench: boolean
   highlightLive: boolean
   showProjections: boolean
   showOpponents: boolean
+  playersGroupBy: PlayersGroupBy
   refresh: 'auto' | 'manual'
   dashboardView: DashboardView
+  /** Pinned scoring week. `null` follows the live week. */
+  scoringWeek: number | null
 }
 
 export type SavedDashboard = {
@@ -135,12 +140,29 @@ const DEFAULT_PREFS: DashboardPrefs = {
   highlightLive: true,
   showProjections: true,
   showOpponents: true,
+  playersGroupBy: 'position',
   refresh: 'auto',
   dashboardView: 'teams',
+  scoringWeek: null,
 }
 
 function emptyConfig(): SavedDashboard {
   return { providers: {}, prefs: { ...DEFAULT_PREFS } }
+}
+
+function normalizePrefs(raw: unknown): DashboardPrefs {
+  const value = raw && typeof raw === 'object' ? (raw as Partial<DashboardPrefs>) : {}
+  const groupBy = value.playersGroupBy
+  const week = value.scoringWeek
+  return {
+    ...DEFAULT_PREFS,
+    ...value,
+    playersGroupBy: groupBy === 'fantasy' ? 'fantasy' : DEFAULT_PREFS.playersGroupBy,
+    scoringWeek:
+      typeof week === 'number' && Number.isFinite(week) && week > 0
+        ? Math.min(30, Math.trunc(week))
+        : null,
+  }
 }
 
 function isSport(value: unknown): value is EspnConnection['sport'] {
@@ -207,7 +229,7 @@ export function loadConfig(): SavedDashboard {
         ...parsed.providers,
         espn: normalizeEspn(parsed.providers?.espn),
       },
-      prefs: { ...DEFAULT_PREFS, ...parsed.prefs },
+      prefs: normalizePrefs(parsed.prefs),
     }
   } catch {
     return emptyConfig()
@@ -284,7 +306,7 @@ export function disconnectProvider(provider: 'sleeper' | 'yahoo' | 'espn'): Save
 
 export function savePrefs(prefs: Partial<DashboardPrefs>): SavedDashboard {
   const next = loadConfig()
-  next.prefs = { ...next.prefs, ...prefs }
+  next.prefs = normalizePrefs({ ...next.prefs, ...prefs })
   saveConfig(next)
   return next
 }
