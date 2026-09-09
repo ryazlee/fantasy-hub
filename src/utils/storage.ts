@@ -32,6 +32,7 @@ export type SavedDashboard = {
 const CONFIG_KEY = 'fantasy-hub-config'
 const YAHOO_KEY = 'fantasy-hub-yahoo'
 const RESEARCH_KEY = 'fantasy-hub-research'
+const DISMISSED_WARNINGS_KEY = 'fantasy-hub-dismissed-warnings'
 
 const ALLOWED_RESEARCH_SUBS = new Set([
   'fantasyfootball',
@@ -109,6 +110,24 @@ export function loadResearchFilters(): ResearchFilters {
 
 export function saveResearchFilters(filters: ResearchFilters): void {
   localStorage.setItem(RESEARCH_KEY, JSON.stringify(normalizeResearchFilters(filters)))
+}
+
+export function loadDismissedWarnings(): string[] {
+  try {
+    const raw = localStorage.getItem(DISMISSED_WARNINGS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  } catch {
+    return []
+  }
+}
+
+export function dismissWarning(code: string): string[] {
+  const next = [...new Set([...loadDismissedWarnings(), code])]
+  localStorage.setItem(DISMISSED_WARNINGS_KEY, JSON.stringify(next))
+  return next
 }
 
 const DEFAULT_PREFS: DashboardPrefs = {

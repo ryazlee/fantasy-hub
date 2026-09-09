@@ -104,6 +104,8 @@ export type NFLGame = {
 export type ProviderError = {
   provider: ProviderName
   message: string
+  /** Stable id for dismissible warnings (e.g. Yahoo API access gate). */
+  code?: string
 }
 
 export type DashboardData = {

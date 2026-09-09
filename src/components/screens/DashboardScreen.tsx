@@ -7,7 +7,7 @@ import PrefToggle from '../dashboard/PrefToggle'
 import { useDashboard, useNflGames } from '../../hooks/useDashboard'
 import { headerPeriodLabel } from '../../domain/sportDisplay'
 import { applyShareMeta } from '../../utils/shareMeta'
-import { hasAnyProvider, savePrefs } from '../../utils/storage'
+import { hasAnyProvider, loadDismissedWarnings, dismissWarning, savePrefs } from '../../utils/storage'
 import type { DashboardView } from '../../domain/types'
 
 const VIEWS: { id: DashboardView; to: string; label: string; end?: boolean }[] = [
@@ -37,6 +37,7 @@ export default function DashboardScreen() {
   const location = useLocation()
   const showOpponentsToggle = location.pathname.endsWith('/live')
   const [now, setNow] = useState(() => Date.now())
+  const [dismissedWarnings, setDismissedWarnings] = useState(loadDismissedWarnings)
 
   const week =
     data?.teams.find((row) => row.league.sport === 'nfl')?.league.scoringPeriod ??
@@ -103,11 +104,26 @@ export default function DashboardScreen() {
             <p className="notice notice--danger">We could not load the dashboard. Try refresh.</p>
           ) : null}
 
-          {data?.errors.map((error) => (
-            <p key={error.provider} className="provider-warn">
-              {error.message}
-            </p>
-          ))}
+          {data?.errors
+            .filter((error) => !error.code || !dismissedWarnings.includes(error.code))
+            .map((error) => {
+              const code = error.code
+              return (
+                <div key={code ?? error.provider} className="provider-warn">
+                  <p className="provider-warn__text">{error.message}</p>
+                  {code ? (
+                    <button
+                      type="button"
+                      className="provider-warn__dismiss"
+                      aria-label="Dismiss"
+                      onClick={() => setDismissedWarnings(dismissWarning(code))}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
 
           {data && data.teams.length === 0 && !isPending ? (
             <p className="notice">No teams yet for the connected accounts.</p>

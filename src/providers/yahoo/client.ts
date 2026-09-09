@@ -1,28 +1,38 @@
 const BASE = (import.meta.env.VITE_YAHOO_API_URL ?? '').replace(/\/$/, '')
 
+/** Dismissible warning id for Yahoo Fantasy Sports API app-gate 403s. */
+export const YAHOO_API_ACCESS_CODE = 'yahoo-api-access'
+
 export class YahooError extends Error {
   status?: number
+  code?: string
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, code?: string) {
     super(message)
     this.name = 'YahooError'
     this.status = status
+    this.code = code
   }
 }
 
 /** Map Yahoo Fantasy app-gate 403s to actionable copy (portal approval, not re-auth). */
-function friendlyYahooApiError(raw: string, yahooStatus?: number): string {
+function friendlyYahooApiError(
+  raw: string,
+  yahooStatus?: number,
+): { message: string; code?: string } {
   if (
     yahooStatus === 403 &&
     /not authorized to perform this action|Fantasy API access is not approved/i.test(raw)
   ) {
-    return (
-      'Yahoo has not approved Fantasy Sports API access for this app. ' +
-      'In the Yahoo Sports Developer Portal, request access at sports.yahoo.com/developer/access ' +
-      'and include your existing App ID. Re-connecting Yahoo alone will not fix this.'
-    )
+    return {
+      code: YAHOO_API_ACCESS_CODE,
+      message:
+        'Yahoo has not approved Fantasy Sports API access for this app. ' +
+        'In the Yahoo Sports Developer Portal, request access at sports.yahoo.com/developer/access ' +
+        'and include your existing App ID. Re-connecting Yahoo alone will not fix this.',
+    }
   }
-  return raw || 'We could not load your Yahoo leagues.'
+  return { message: raw || 'We could not load your Yahoo leagues.' }
 }
 
 export function yahooWorkerUrl(): string {
@@ -87,7 +97,8 @@ export async function yahooGet<T>(path: string, session: string): Promise<T> {
       body && typeof body === 'object' && typeof (body as { yahooStatus?: unknown }).yahooStatus === 'number'
         ? (body as { yahooStatus: number }).yahooStatus
         : undefined
-    throw new YahooError(friendlyYahooApiError(rawMsg, yahooStatus ?? res.status), res.status)
+    const friendly = friendlyYahooApiError(rawMsg, yahooStatus ?? res.status)
+    throw new YahooError(friendly.message, res.status, friendly.code)
   }
 
   if (body == null) throw new YahooError('We could not read Yahoo data.')

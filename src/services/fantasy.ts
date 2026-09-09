@@ -258,6 +258,7 @@ export async function loadDashboard(): Promise<DashboardData> {
       errors.push({
         provider: 'yahoo',
         message: userMessage(error, 'We could not load your Yahoo leagues.'),
+        code: error instanceof YahooError ? error.code : undefined,
       })
     }
   }
