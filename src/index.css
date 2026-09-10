@@ -275,6 +275,40 @@ a {
   }
 }
 
+@keyframes live-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+@keyframes live-card-pulse {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--success) 72%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent);
+  }
+}
+
+@keyframes live-row-pulse {
+  0%,
+  100% {
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+  }
+  50% {
+    background: color-mix(in srgb, var(--success) 20%, transparent);
+  }
+}
+
 .app-main {
   flex: 1 1 auto;
   min-width: 0;
@@ -1122,6 +1156,7 @@ a.roster-row__player:hover {
   padding: 0.2rem 0.4rem;
   border-radius: 8px;
   background: color-mix(in srgb, var(--success) 10%, transparent);
+  animation: live-row-pulse 2.6s ease-in-out infinite;
 }
 
 .chips {
@@ -1490,6 +1525,7 @@ html.theme-dark .h2h__you {
 
 .game-card--live {
   border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  animation: live-card-pulse 2.8s ease-in-out infinite;
 }
 
 .game-card__head {
@@ -1510,8 +1546,29 @@ html.theme-dark .h2h__you {
 }
 
 .live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--success);
   font-weight: 600;
+}
+
+.live-dot::before {
+  content: '';
+  flex-shrink: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--success);
+  animation: live-dot-pulse 1.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-card--live,
+  .roster-row--live,
+  .live-dot::before {
+    animation: none;
+  }
 }
 
 .game-card__vs {
