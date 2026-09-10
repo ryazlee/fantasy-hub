@@ -42,13 +42,20 @@ export async function getNflScoreboard(week?: number): Promise<NFLGame[]> {
       const status = statusFrom(state)
       const homeScore = home?.score != null ? Number(home.score) : undefined
       const awayScore = away?.score != null ? Number(away.score) : undefined
+      const started = status !== 'scheduled'
       return [
         {
           id: event.id,
           startTime: event.date ?? '',
           status,
-          home: { abbr: home?.team?.abbreviation ?? '', score: Number.isFinite(homeScore) ? homeScore : undefined },
-          away: { abbr: away?.team?.abbreviation ?? '', score: Number.isFinite(awayScore) ? awayScore : undefined },
+          home: {
+            abbr: home?.team?.abbreviation ?? '',
+            score: started && Number.isFinite(homeScore) ? homeScore : undefined,
+          },
+          away: {
+            abbr: away?.team?.abbreviation ?? '',
+            score: started && Number.isFinite(awayScore) ? awayScore : undefined,
+          },
           clockLabel: competition.status?.type?.shortDetail,
         },
       ]

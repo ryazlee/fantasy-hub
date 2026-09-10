@@ -1,4 +1,5 @@
 import { useOutletContext } from 'react-router-dom'
+import { anyPlayerHasPlayed } from '../../domain/nflGames'
 import { providerLabel } from '../../domain/sportDisplay'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import type { DashboardContext } from './context'
@@ -40,6 +41,7 @@ export default function MatchupsView() {
               }
               points={row.matchup?.points}
               opponentPoints={row.matchup?.opponentPoints}
+              started={anyPlayerHasPlayed(yours, games) || anyPlayerHasPlayed(opps, games)}
             />
             <div className="h2h__grid">
               <div>

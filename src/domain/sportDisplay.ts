@@ -24,6 +24,14 @@ export function formatPoints(value: number | null | undefined): string {
   return points.toFixed(1)
 }
 
+export function formatPointsIfStarted(
+  value: number | null | undefined,
+  started: boolean,
+): string {
+  if (!started) return '—'
+  return formatPoints(value)
+}
+
 export function headerPeriodLabel(week: number | undefined, weekday: string): string {
   if (!week) return weekday
   return `${weekday}, Week ${week}`

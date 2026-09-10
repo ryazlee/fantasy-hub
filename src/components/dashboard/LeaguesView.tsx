@@ -9,7 +9,8 @@ function teamPath(teamId: string): string {
 }
 
 export default function LeaguesView() {
-  const { leagues } = useOutletContext<DashboardContext>()
+  const { leagues, games } = useOutletContext<DashboardContext>()
+  const weekLive = games.some((game) => game.status === 'live')
 
   if (leagues.length === 0) {
     return <p className="notice">No connected leagues to show.</p>
@@ -54,6 +55,11 @@ export default function LeaguesView() {
                         points={pair.home.points}
                         opponentPoints={pair.away?.points}
                         emptyOpponent={!pair.away}
+                        started={
+                          weekLive ||
+                          (pair.home.points ?? 0) !== 0 ||
+                          (pair.away?.points ?? 0) !== 0
+                        }
                       />
                     </div>
                   )

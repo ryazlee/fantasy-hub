@@ -1,10 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../AppHeader'
-import { useTeam } from '../../hooks/useDashboard'
+import { useNflGames, useTeam } from '../../hooks/useDashboard'
+import { anyPlayerHasPlayed } from '../../domain/nflGames'
 import { positionTone } from '../../domain/positions'
 import { isBenchSlot } from '../../domain/rosterSlots'
-import { formatPoints, providerLabel } from '../../domain/sportDisplay'
+import { formatPointsIfStarted, providerLabel } from '../../domain/sportDisplay'
 import { applyShareMeta } from '../../utils/shareMeta'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import PlayerLine from '../dashboard/PlayerLine'
@@ -16,6 +17,9 @@ export default function TeamScreen() {
   const { data, isPending, isError } = useTeam(decoded)
   const prefs = useSavedConfig().prefs
   const showBench = prefs.showBench
+  const gamesQuery = useNflGames(Boolean(decoded), prefs.scoringWeek)
+  const games = gamesQuery.data ?? []
+  const matchupStarted = data ? anyPlayerHasPlayed(data.roster, games) : false
 
   useEffect(() => {
     applyShareMeta(data?.team.name)
@@ -58,7 +62,7 @@ export default function TeamScreen() {
 
           {data?.matchup ? (
             <p className="notice">
-              {formatPoints(data.matchup.points)} vs{' '}
+              {formatPointsIfStarted(data.matchup.points, matchupStarted)} vs{' '}
               {data.matchup.opponentTeamId ? (
                 <Link to={`/team/${encodeURIComponent(data.matchup.opponentTeamId)}`}>
                   {data.opponentName ?? 'Opponent'}
@@ -66,7 +70,7 @@ export default function TeamScreen() {
               ) : (
                 (data.opponentName ?? 'Opponent')
               )}{' '}
-              {formatPoints(data.matchup.opponentPoints)}
+              {formatPointsIfStarted(data.matchup.opponentPoints, matchupStarted)}
             </p>
           ) : null}
 
@@ -79,7 +83,7 @@ export default function TeamScreen() {
                 <PlayerLine
                   key={player.providerPlayerId}
                   player={player}
-                  games={[]}
+                  games={games}
                   showGame={false}
                   sport={data?.league.sport ?? 'nfl'}
                   highlightLive={prefs.highlightLive}

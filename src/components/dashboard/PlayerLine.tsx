@@ -2,8 +2,8 @@ import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { injuryFlagClass, injuryTitle } from '../../domain/injury'
 import { sleeperPlayerUrl } from '../../domain/media'
-import { formatPoints } from '../../domain/sportDisplay'
-import { gameForProTeam, playerGameLabel } from '../../domain/nflGames'
+import { formatPointsIfStarted } from '../../domain/sportDisplay'
+import { gameForProTeam, gameHasStarted, playerGameLabel } from '../../domain/nflGames'
 import { positionTone } from '../../domain/positions'
 import type { FantasyRosterPlayer, NFLGame, Sport } from '../../domain/types'
 import PlayerPhoto from '../PlayerPhoto'
@@ -62,7 +62,9 @@ export default function PlayerLine({
   mirror = false,
 }: PlayerLineProps) {
   const game = gameForProTeam(games, player.proTeam)
+  const started = gameHasStarted(game)
   const live = game?.status === 'live'
+  const pointsText = started ? (pointsLabel ?? formatPointsIfStarted(player.points, true)) : '—'
   const gameLabel = showGame ? playerGameLabel(game) : ''
   const injury = player.injuryStatus
   const detailNode = detail ? renderDetail(detail, detailTo) : null
@@ -132,7 +134,9 @@ export default function PlayerLine({
           ) : null}
         </span>
       </span>
-      <span className="roster-row__pts">{pointsLabel ?? formatPoints(player.points)}</span>
+      <span className={pointsText === '—' ? 'roster-row__pts roster-row__pts--empty' : 'roster-row__pts'}>
+        {pointsText}
+      </span>
     </div>
   )
 }

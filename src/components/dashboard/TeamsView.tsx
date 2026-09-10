@@ -1,5 +1,5 @@
 import { useOutletContext } from 'react-router-dom'
-import { playerHasPlayed, playerIsLive } from '../../domain/nflGames'
+import { anyPlayerHasPlayed, playerHasPlayed, playerIsLive } from '../../domain/nflGames'
 import type { FantasyRosterPlayer, NFLGame } from '../../domain/types'
 import { providerLabel, sportLabel } from '../../domain/sportDisplay'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
@@ -46,6 +46,7 @@ export default function TeamsView() {
               teamTally={rosterTally(roster, games)}
               opponentTally={hasOpponent ? rosterTally(oppRoster, games) : undefined}
               emptyOpponent={!hasOpponent}
+              started={anyPlayerHasPlayed(roster, games) || anyPlayerHasPlayed(oppRoster, games)}
             />
           </article>
         )

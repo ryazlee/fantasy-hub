@@ -1151,6 +1151,11 @@ a.roster-row__player:hover {
   font-weight: 600;
 }
 
+.roster-row__pts--empty {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .roster-row--live {
   margin: 0 -0.4rem;
   padding: 0.2rem 0.4rem;

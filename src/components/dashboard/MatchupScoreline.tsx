@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { formatPoints } from '../../domain/sportDisplay'
+import { formatPointsIfStarted } from '../../domain/sportDisplay'
 
 type MatchupScorelineProps = {
   teamName: string
@@ -17,6 +17,7 @@ type MatchupScorelineProps = {
   teamTally?: string
   opponentTally?: string
   emptyOpponent?: boolean
+  started?: boolean
 }
 
 function whoClass(opts: {
@@ -62,10 +63,11 @@ export default function MatchupScoreline({
   teamTally,
   opponentTally,
   emptyOpponent = false,
+  started = true,
 }: MatchupScorelineProps) {
   let yours: 'winning' | 'losing' | null = null
   let theirs: 'winning' | 'losing' | null = null
-  if (!emptyOpponent && points != null && opponentPoints != null) {
+  if (started && !emptyOpponent && points != null && opponentPoints != null) {
     if (points > opponentPoints) {
       yours = 'winning'
       theirs = 'losing'
@@ -92,6 +94,8 @@ export default function MatchupScoreline({
   )
 
   const showTally = teamTally != null || opponentTally != null
+  const yoursPts = formatPointsIfStarted(points, started)
+  const theirsPts = emptyOpponent ? '—' : formatPointsIfStarted(opponentPoints, started)
 
   return (
     <div className="h2h__scores">
@@ -103,15 +107,21 @@ export default function MatchupScoreline({
         <span className={whoClass({ mine: teamMine, status: yours })}>{you}</span>
       )}
       <div className="h2h__mid">
-        <span className={yours ? `h2h__pts h2h__pts--${yours}` : 'h2h__pts'}>{formatPoints(points)}</span>
+        <span
+          className={['h2h__pts', yours && `h2h__pts--${yours}`, yoursPts === '—' && 'h2h__pts--empty']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {yoursPts}
+        </span>
         <span className="h2h__mid-rule" aria-hidden />
-        {emptyOpponent ? (
-          <span className="h2h__pts h2h__pts--empty">—</span>
-        ) : (
-          <span className={theirs ? `h2h__pts h2h__pts--${theirs}` : 'h2h__pts'}>
-            {formatPoints(opponentPoints)}
-          </span>
-        )}
+        <span
+          className={['h2h__pts', theirs && `h2h__pts--${theirs}`, theirsPts === '—' && 'h2h__pts--empty']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {theirsPts}
+        </span>
       </div>
       {opponentTo && !emptyOpponent ? (
         <Link className={whoClass({ opp: true, mine: opponentMine, status: theirs })} to={opponentTo}>

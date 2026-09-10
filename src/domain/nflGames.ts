@@ -18,9 +18,16 @@ export function playerInGame(player: FantasyRosterPlayer, game: NFLGame): boolea
   )
 }
 
-export function playerHasPlayed(player: FantasyRosterPlayer, games: NFLGame[]): boolean {
-  const game = gameForProTeam(games, player.proTeam)
+export function gameHasStarted(game: NFLGame | undefined): boolean {
   return game?.status === 'live' || game?.status === 'final'
+}
+
+export function playerHasPlayed(player: FantasyRosterPlayer, games: NFLGame[]): boolean {
+  return gameHasStarted(gameForProTeam(games, player.proTeam))
+}
+
+export function anyPlayerHasPlayed(players: FantasyRosterPlayer[], games: NFLGame[]): boolean {
+  return players.some((player) => playerHasPlayed(player, games))
 }
 
 export function playerIsLive(player: FantasyRosterPlayer, games: NFLGame[]): boolean {
@@ -47,10 +54,13 @@ export function gameClockLabel(game: NFLGame): string {
   return formatKickoff(game.startTime)
 }
 
+export function sideScoreText(score: number | undefined, game: NFLGame): string {
+  if (!gameHasStarted(game) || score == null) return ''
+  return ` ${score}`
+}
+
 export function gameScoreLabel(game: NFLGame): string {
-  const away = game.away.score != null ? ` ${game.away.score}` : ''
-  const home = game.home.score != null ? ` ${game.home.score}` : ''
-  return `${game.away.abbr}${away} @ ${game.home.abbr}${home}`
+  return `${game.away.abbr}${sideScoreText(game.away.score, game)} @ ${game.home.abbr}${sideScoreText(game.home.score, game)}`
 }
 
 export function playerGameLabel(game: NFLGame | undefined): string {

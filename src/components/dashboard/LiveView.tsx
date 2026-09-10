@@ -1,6 +1,6 @@
 import { useOutletContext } from 'react-router-dom'
-import { gameClockLabel, playerInGame, sortGames } from '../../domain/nflGames'
-import { formatPoints } from '../../domain/sportDisplay'
+import { gameClockLabel, gameHasStarted, playerInGame, sideScoreText, sortGames } from '../../domain/nflGames'
+import { formatPoints, formatPointsIfStarted } from '../../domain/sportDisplay'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import type { DashboardTeam, FantasyRosterPlayer, NFLGame, Sport } from '../../domain/types'
 import TeamLogo from '../TeamLogo'
@@ -43,10 +43,11 @@ function uniqueTeams(rows: LivePlayerRow[]): LivePlayerRow[] {
   return out
 }
 
-function teamDetailLabel(row: LivePlayerRow, teams: LivePlayerRow[]): string {
+function teamDetailLabel(row: LivePlayerRow, teams: LivePlayerRow[], started: boolean): string {
   const clash = teams.filter((team) => team.teamName === row.teamName).length > 1
   const name = clash ? `${row.teamName} (${row.leagueName})` : row.teamName
-  return `${name} ${formatPoints(row.teamPoints)}`
+  const pts = formatPointsIfStarted(row.teamPoints, started)
+  return pts === '—' ? name : `${name} ${pts}`
 }
 
 function teamDetailTo(teamId: string): string | undefined {
@@ -103,7 +104,7 @@ function collectGamePlayers(
   return rows
 }
 
-function mergeLivePlayers(rows: LivePlayerRow[]): LiveDisplayRow[] {
+function mergeLivePlayers(rows: LivePlayerRow[], started: boolean): LiveDisplayRow[] {
   const buckets = new Map<string, LivePlayerRow[]>()
   for (const row of rows) {
     const key = playerMergeKey(row.player)
@@ -118,7 +119,7 @@ function mergeLivePlayers(rows: LivePlayerRow[]): LiveDisplayRow[] {
     )
     const teams = uniqueTeams(list)
     const detail: PlayerLineDetail[] = teams.map((team) => ({
-      label: teamDetailLabel(team, teams),
+      label: teamDetailLabel(team, teams, started),
       to: teamDetailTo(team.teamId),
     }))
     const injuryStatus = list.find((row) => row.player.injuryStatus)?.player.injuryStatus
@@ -157,8 +158,9 @@ export default function LiveView() {
   return (
     <section className="stack">
       {slate.map((game) => {
+        const started = gameHasStarted(game)
         const players = sortLivePlayers(
-          mergeLivePlayers(collectGamePlayers(teams, game, prefs.showBench, prefs.showOpponents)),
+          mergeLivePlayers(collectGamePlayers(teams, game, prefs.showBench, prefs.showOpponents), started),
         )
 
         return (
@@ -171,13 +173,13 @@ export default function LiveView() {
                 <span className="game-card__team">
                   <TeamLogo abbr={game.away.abbr} />
                   {game.away.abbr}
-                  {game.away.score != null ? ` ${game.away.score}` : ''}
+                  {sideScoreText(game.away.score, game)}
                 </span>
                 <span className="game-card__at">@</span>
                 <span className="game-card__team">
                   <TeamLogo abbr={game.home.abbr} />
                   {game.home.abbr}
-                  {game.home.score != null ? ` ${game.home.score}` : ''}
+                  {sideScoreText(game.home.score, game)}
                 </span>
               </p>
               <p className="game-card__clock">
