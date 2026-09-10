@@ -1204,6 +1204,7 @@ a.roster-row__player:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   min-height: 36px;
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
@@ -1222,6 +1223,20 @@ a.roster-row__player:hover {
     background 0.15s ease,
     border-color 0.15s ease,
     color 0.15s ease;
+}
+
+.chip__live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--success);
+  flex-shrink: 0;
+  animation: live-dot-pulse 1.7s ease-in-out infinite;
+}
+
+.chip--on .chip__live-dot,
+.chip[aria-current='page'] .chip__live-dot {
+  background: #4ade80;
 }
 
 .chip:hover {
@@ -1571,7 +1586,8 @@ html.theme-dark .h2h__you {
 @media (prefers-reduced-motion: reduce) {
   .game-card--live,
   .roster-row--live,
-  .live-dot::before {
+  .live-dot::before,
+  .chip__live-dot {
     animation: none;
   }
 }

@@ -18,10 +18,10 @@ import type { DashboardView } from '../../domain/types'
 
 const VIEWS: { id: DashboardView; to: string; label: string; end?: boolean }[] = [
   { id: 'teams', to: '/dashboard', label: 'Teams', end: true },
+  { id: 'live', to: '/dashboard/live', label: 'Live' },
   { id: 'matchups', to: '/dashboard/matchups', label: 'Matchups' },
   { id: 'leagues', to: '/dashboard/leagues', label: 'Leagues' },
   { id: 'players', to: '/dashboard/players', label: 'Players' },
-  { id: 'live', to: '/dashboard/live', label: 'Live' },
   { id: 'research', to: '/dashboard/research', label: 'Research' },
 ]
 
@@ -99,6 +99,7 @@ export default function DashboardScreen() {
   const view = viewFromPath(location.pathname)
   const prefs = useSavedConfig().prefs
   const gamesQuery = useNflGames(connected, prefs.scoringWeek)
+  const hasLiveGame = (gamesQuery.data ?? []).some((game) => game.status === 'live')
   const menuItems = overflowItems(view, prefs)
   const [now, setNow] = useState(() => Date.now())
   const [dismissedWarnings, setDismissedWarnings] = useState(loadDismissedWarnings)
@@ -218,15 +219,19 @@ export default function DashboardScreen() {
           {connected ? (
             <div className="chips-bar">
               <nav className="chips" aria-label="Dashboard views">
-                {VIEWS.map((view) => (
+                {VIEWS.map((tab) => (
                   <NavLink
-                    key={view.id}
-                    to={view.to}
-                    end={view.end}
+                    key={tab.id}
+                    to={tab.to}
+                    end={tab.end}
                     className={({ isActive }) => (isActive ? 'chip chip--on' : 'chip')}
-                    onClick={() => savePrefs({ dashboardView: view.id })}
+                    aria-label={tab.id === 'live' && hasLiveGame ? 'Live, game in progress' : undefined}
+                    onClick={() => savePrefs({ dashboardView: tab.id })}
                   >
-                    {view.label}
+                    {tab.label}
+                    {tab.id === 'live' && hasLiveGame ? (
+                      <span className="chip__live-dot" aria-hidden />
+                    ) : null}
                   </NavLink>
                 ))}
               </nav>
