@@ -147,7 +147,7 @@ function sortLivePlayers(rows: LiveDisplayRow[]): LiveDisplayRow[] {
 }
 
 export default function LiveView() {
-  const { teams, games } = useOutletContext<DashboardContext>()
+  const { teams, games, playerStats } = useOutletContext<DashboardContext>()
   const prefs = useSavedConfig().prefs
   const slate = sortGames(games)
 
@@ -197,6 +197,7 @@ export default function LiveView() {
                     key={row.rowKey}
                     player={row.player}
                     games={games}
+                    playerStats={playerStats}
                     detail={row.detail}
                     detailTo={row.detailTo}
                     pointsLabel={row.pointsLabel}

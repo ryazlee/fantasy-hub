@@ -1,5 +1,7 @@
 import { espnGet, scoreboardUrl, NflError } from './client'
-import type { NFLGame, NFLGameStatus } from './types'
+import { sleeperGet } from '../sleeper/client'
+import type { SleeperState } from '../sleeper/types'
+import type { NFLGame, NFLGameStatus, NFLPlayerWeekStats } from './types'
 
 type EspnCompetitor = {
   homeAway?: string
@@ -63,5 +65,35 @@ export async function getNflScoreboard(week?: number): Promise<NFLGame[]> {
   } catch (error) {
     if (error instanceof NflError) throw error
     throw new NflError('We could not load NFL games.')
+  }
+}
+
+function asWeekStats(raw: unknown): Record<string, NFLPlayerWeekStats> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, NFLPlayerWeekStats> = {}
+  for (const [id, row] of Object.entries(raw as Record<string, unknown>)) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue
+    const stats: NFLPlayerWeekStats = {}
+    for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      if (typeof value === 'number' && Number.isFinite(value)) stats[key] = value
+    }
+    if (Object.keys(stats).length) out[id] = stats
+  }
+  return out
+}
+
+export async function getNflPlayerStats(week?: number): Promise<Record<string, NFLPlayerWeekStats>> {
+  try {
+    const state = await sleeperGet<SleeperState>('/state/nfl')
+    const season = state?.season
+    if (!season) return {}
+    const current = Number(state.display_week ?? state.week ?? 1)
+    const view =
+      week && week > 0 ? week : Number.isFinite(current) && current > 0 ? current : 1
+    const path =
+      view > 18 ? `/stats/nfl/post/${season}/${view - 18}` : `/stats/nfl/regular/${season}/${view}`
+    return asWeekStats(await sleeperGet<unknown>(path))
+  } catch {
+    return {}
   }
 }

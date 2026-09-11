@@ -4,7 +4,7 @@ import { RefreshCw, Settings } from 'lucide-react'
 import AppHeader from '../AppHeader'
 import OverflowMenu, { type OverflowMenuItem } from '../OverflowMenu'
 import WeekSelect from '../WeekSelect'
-import { useDashboard, useNflGames } from '../../hooks/useDashboard'
+import { useDashboard, useNflGames, useNflPlayerStats } from '../../hooks/useDashboard'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import { applyShareMeta } from '../../utils/shareMeta'
 import {
@@ -99,6 +99,7 @@ export default function DashboardScreen() {
   const view = viewFromPath(location.pathname)
   const prefs = useSavedConfig().prefs
   const gamesQuery = useNflGames(connected, prefs.scoringWeek)
+  const statsQuery = useNflPlayerStats(connected, prefs.scoringWeek)
   const hasLiveGame = (gamesQuery.data ?? []).some((game) => game.status === 'live')
   const menuItems = overflowItems(view, prefs)
   const [now, setNow] = useState(() => Date.now())
@@ -108,9 +109,9 @@ export default function DashboardScreen() {
   const weekCount = data?.weekCount ?? 18
   const viewWeek = prefs.scoringWeek ?? data?.viewWeek ?? currentWeek
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date())
-  const lastUpdatedAt = Math.max(dataUpdatedAt, gamesQuery.dataUpdatedAt)
+  const lastUpdatedAt = Math.max(dataUpdatedAt, gamesQuery.dataUpdatedAt, statsQuery.dataUpdatedAt)
   const ago = connected ? updatedDelta(lastUpdatedAt, now) : ''
-  const refreshing = isFetching || gamesQuery.isFetching
+  const refreshing = isFetching || gamesQuery.isFetching || statsQuery.isFetching
 
   useEffect(() => {
     applyShareMeta('Dashboard')
@@ -159,6 +160,7 @@ export default function DashboardScreen() {
                 onClick={() => {
                   void refetch()
                   void gamesQuery.refetch()
+                  void statsQuery.refetch()
                 }}
               >
                 <span className="btn__icon">
@@ -254,6 +256,7 @@ export default function DashboardScreen() {
               context={{
                 teams: data.teams,
                 games: gamesQuery.data ?? [],
+                playerStats: statsQuery.data ?? {},
                 leagues: (data.leagues ?? []).map(({ league, ownedTeamIds, matchups }) => ({
                   league,
                   ownedTeamIds,

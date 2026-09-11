@@ -110,6 +110,9 @@ export type NFLGame = {
   clockLabel?: string
 }
 
+/** Weekly box-score counters keyed by Sleeper stat names (pass_yd, rec, pts_allow, …). */
+export type NFLPlayerWeekStats = Record<string, number>
+
 export type ProviderError = {
   provider: ProviderName
   message: string

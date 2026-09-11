@@ -1114,6 +1114,10 @@ a.roster-row__player:hover {
   color: var(--text-muted);
 }
 
+.roster-row__stats {
+  color: var(--text-secondary);
+}
+
 .roster-flag {
   display: inline-block;
   flex-shrink: 0;

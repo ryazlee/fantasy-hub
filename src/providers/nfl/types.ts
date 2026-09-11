@@ -1,1 +1,1 @@
-export type { NFLGame, NFLGameStatus } from '../../domain/types'
+export type { NFLGame, NFLGameStatus, NFLPlayerWeekStats } from '../../domain/types'

@@ -2,10 +2,11 @@ import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { injuryFlagClass, injuryTitle } from '../../domain/injury'
 import { sleeperPlayerUrl } from '../../domain/media'
+import { playerStatLine, statsForPlayer } from '../../domain/playerStats'
 import { formatPointsIfStarted } from '../../domain/sportDisplay'
 import { gameForProTeam, gameHasStarted, playerGameLabel } from '../../domain/nflGames'
 import { positionTone } from '../../domain/positions'
-import type { FantasyRosterPlayer, NFLGame, Sport } from '../../domain/types'
+import type { FantasyRosterPlayer, NFLGame, NFLPlayerWeekStats, Sport } from '../../domain/types'
 import PlayerPhoto from '../PlayerPhoto'
 
 export type PlayerLineDetail = {
@@ -16,6 +17,7 @@ export type PlayerLineDetail = {
 type PlayerLineProps = {
   player: FantasyRosterPlayer
   games: NFLGame[]
+  playerStats?: Record<string, NFLPlayerWeekStats>
   detail?: string | PlayerLineDetail[]
   detailTo?: string
   pointsLabel?: string
@@ -53,6 +55,7 @@ function renderDetail(detail: string | PlayerLineDetail[], detailTo?: string): R
 export default function PlayerLine({
   player,
   games,
+  playerStats,
   detail,
   detailTo,
   pointsLabel,
@@ -66,17 +69,23 @@ export default function PlayerLine({
   const live = game?.status === 'live'
   const pointsText = started ? (pointsLabel ?? formatPointsIfStarted(player.points, true)) : '—'
   const gameLabel = showGame ? playerGameLabel(game) : ''
+  const statLine =
+    sport === 'nfl' && started
+      ? playerStatLine(statsForPlayer(playerStats, player), player.position)
+      : ''
   const injury = player.injuryStatus
   const detailNode = detail ? renderDetail(detail, detailTo) : null
   const positionPart = player.position ? (
     <span className="pos-label">{player.position}</span>
   ) : null
   const teamPart = player.proTeam || null
-  const gamePart = gameLabel ? <span className="roster-row__game">{gameLabel}</span> : null
+  const statsPart = statLine ? <span className="roster-row__stats">{statLine}</span> : null
+  const showGameLabel = Boolean(gameLabel && !(statLine && game?.status === 'final'))
+  const gamePart = showGameLabel ? <span className="roster-row__game">{gameLabel}</span> : null
   const meta = (
     mirror
-      ? [gamePart, detailNode, teamPart, positionPart]
-      : [positionPart, teamPart, detailNode, gamePart]
+      ? [gamePart, detailNode, statsPart, teamPart, positionPart]
+      : [positionPart, teamPart, statsPart, detailNode, gamePart]
   ).filter(Boolean)
   const hasMeta = meta.length > 0
   const playerHref = sleeperPlayerUrl(sport, player.canonicalPlayerId)

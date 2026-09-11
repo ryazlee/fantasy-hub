@@ -142,7 +142,7 @@ function sortGroupKeys(keys: string[], by: GroupBy, rows: DisplayRow[], multiLea
 }
 
 export default function PlayersView() {
-  const { teams, games } = useOutletContext<DashboardContext>()
+  const { teams, games, playerStats } = useOutletContext<DashboardContext>()
   const prefs = useSavedConfig().prefs
   const showBench = prefs.showBench
   const highlightLive = prefs.highlightLive
@@ -210,6 +210,7 @@ export default function PlayersView() {
               <PlayerLine
                 player={row.player}
                 games={games}
+                playerStats={playerStats}
                 detail={groupBy === 'position' ? row.detail : undefined}
                 detailTo={groupBy === 'position' ? row.detailTo : undefined}
                 pointsLabel={row.pointsLabel}

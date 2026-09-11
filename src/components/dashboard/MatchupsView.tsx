@@ -9,7 +9,7 @@ import RosterLines from './RosterLines'
 import { visibleRoster } from './roster'
 
 export default function MatchupsView() {
-  const { teams, games } = useOutletContext<DashboardContext>()
+  const { teams, games, playerStats } = useOutletContext<DashboardContext>()
   const prefs = useSavedConfig().prefs
   const rows = teams.filter((row) => row.matchup)
 
@@ -53,6 +53,7 @@ export default function MatchupsView() {
                     <PlayerLine
                       player={player}
                       games={games}
+                      playerStats={playerStats}
                       highlightLive={prefs.highlightLive}
                       sport={row.league.sport}
                     />
@@ -68,6 +69,7 @@ export default function MatchupsView() {
                     <PlayerLine
                       player={player}
                       games={games}
+                      playerStats={playerStats}
                       highlightLive={prefs.highlightLive}
                       sport={row.league.sport}
                       mirror

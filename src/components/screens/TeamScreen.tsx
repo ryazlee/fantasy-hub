@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../AppHeader'
-import { useNflGames, useTeam } from '../../hooks/useDashboard'
+import { useNflGames, useNflPlayerStats, useTeam } from '../../hooks/useDashboard'
 import { anyPlayerHasPlayed } from '../../domain/nflGames'
 import { positionTone } from '../../domain/positions'
 import { isBenchSlot } from '../../domain/rosterSlots'
@@ -18,7 +18,9 @@ export default function TeamScreen() {
   const prefs = useSavedConfig().prefs
   const showBench = prefs.showBench
   const gamesQuery = useNflGames(Boolean(decoded), prefs.scoringWeek)
+  const statsQuery = useNflPlayerStats(Boolean(decoded), prefs.scoringWeek)
   const games = gamesQuery.data ?? []
+  const playerStats = statsQuery.data ?? {}
   const matchupStarted = data ? anyPlayerHasPlayed(data.roster, games) : false
 
   useEffect(() => {
@@ -84,6 +86,7 @@ export default function TeamScreen() {
                   key={player.providerPlayerId}
                   player={player}
                   games={games}
+                  playerStats={playerStats}
                   showGame={false}
                   sport={data?.league.sport ?? 'nfl'}
                   highlightLive={prefs.highlightLive}

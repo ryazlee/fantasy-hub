@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from './queryKeys'
 import { loadDashboard, loadTeamDetail } from '../services/fantasy'
-import { getNflScoreboard } from '../providers/nfl/adapter'
+import { getNflPlayerStats, getNflScoreboard } from '../providers/nfl/adapter'
 import { hasAnyProvider } from '../utils/storage'
 import { useSavedConfig } from './useSavedConfig'
 
@@ -31,6 +31,16 @@ export function useNflGames(enabled: boolean, week?: number | null) {
   return useQuery({
     queryKey: queryKeys.nflGames(week),
     queryFn: () => getNflScoreboard(week ?? undefined),
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useNflPlayerStats(enabled: boolean, week?: number | null) {
+  return useQuery({
+    queryKey: queryKeys.nflPlayerStats(week),
+    queryFn: () => getNflPlayerStats(week ?? undefined),
     enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
