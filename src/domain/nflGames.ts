@@ -59,6 +59,12 @@ export function sideScoreText(score: number | undefined, game: NFLGame): string 
   return ` ${score}`
 }
 
+export function sideHasBall(game: NFLGame, abbr: string | undefined): boolean {
+  if (game.status !== 'live' || !game.possessionAbbr) return false
+  const team = normalizeTeamAbbr(abbr)
+  return Boolean(team) && team === normalizeTeamAbbr(game.possessionAbbr)
+}
+
 export function gameScoreLabel(game: NFLGame): string {
   return `${game.away.abbr}${sideScoreText(game.away.score, game)} @ ${game.home.abbr}${sideScoreText(game.home.score, game)}`
 }

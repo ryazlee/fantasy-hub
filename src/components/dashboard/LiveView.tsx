@@ -1,5 +1,5 @@
 import { useOutletContext } from 'react-router-dom'
-import { gameClockLabel, gameHasStarted, playerInGame, sideScoreText, sortGames } from '../../domain/nflGames'
+import { gameClockLabel, gameHasStarted, playerInGame, sideHasBall, sideScoreText, sortGames } from '../../domain/nflGames'
 import { formatPoints, formatPointsIfStarted } from '../../domain/sportDisplay'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
 import type { DashboardTeam, FantasyRosterPlayer, NFLGame, Sport } from '../../domain/types'
@@ -146,6 +146,33 @@ function sortLivePlayers(rows: LiveDisplayRow[]): LiveDisplayRow[] {
   )
 }
 
+function GameSide({
+  abbr,
+  score,
+  game,
+}: {
+  abbr: string
+  score?: number
+  game: NFLGame
+}) {
+  const hasBall = sideHasBall(game, abbr)
+  return (
+    <span className={hasBall ? 'game-card__team game-card__team--ball' : 'game-card__team'}>
+      <TeamLogo abbr={abbr} />
+      {abbr}
+      {hasBall ? (
+        <span
+          className="game-card__ball"
+          role="img"
+          aria-label={`${abbr} has the ball`}
+          title={`${abbr} has the ball`}
+        />
+      ) : null}
+      {sideScoreText(score, game)}
+    </span>
+  )
+}
+
 export default function LiveView() {
   const { teams, games, playerStats } = useOutletContext<DashboardContext>()
   const prefs = useSavedConfig().prefs
@@ -170,17 +197,9 @@ export default function LiveView() {
           >
             <div className="game-card__head">
               <p className="game-card__score">
-                <span className="game-card__team">
-                  <TeamLogo abbr={game.away.abbr} />
-                  {game.away.abbr}
-                  {sideScoreText(game.away.score, game)}
-                </span>
+                <GameSide abbr={game.away.abbr} score={game.away.score} game={game} />
                 <span className="game-card__at">@</span>
-                <span className="game-card__team">
-                  <TeamLogo abbr={game.home.abbr} />
-                  {game.home.abbr}
-                  {sideScoreText(game.home.score, game)}
-                </span>
+                <GameSide abbr={game.home.abbr} score={game.home.score} game={game} />
               </p>
               <p className="game-card__clock">
                 {game.status === 'live' ? <span className="live-dot">Live</span> : null}

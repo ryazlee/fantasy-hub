@@ -9,7 +9,7 @@ export class NflError extends Error {
 }
 
 export async function espnGet<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) {
     throw new NflError('We could not load NFL games.')
   }

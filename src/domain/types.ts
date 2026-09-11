@@ -108,6 +108,8 @@ export type NFLGame = {
   home: { abbr: string; score?: number }
   away: { abbr: string; score?: number }
   clockLabel?: string
+  /** Pro team abbreviation of the side with the ball. Live games only. */
+  possessionAbbr?: string
 }
 
 /** Weekly box-score counters keyed by Sleeper stat names (pass_yd, rec, pts_allow, …). */

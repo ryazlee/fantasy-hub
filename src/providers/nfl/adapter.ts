@@ -5,8 +5,13 @@ import type { NFLGame, NFLGameStatus, NFLPlayerWeekStats } from './types'
 
 type EspnCompetitor = {
   homeAway?: string
+  id?: string
   score?: string
-  team?: { abbreviation?: string }
+  team?: { id?: string; abbreviation?: string }
+}
+
+type EspnSituation = {
+  possession?: string
 }
 
 type EspnEvent = {
@@ -14,6 +19,7 @@ type EspnEvent = {
   date?: string
   competitions?: Array<{
     competitors?: EspnCompetitor[]
+    situation?: EspnSituation
     status?: {
       period?: number
       displayClock?: string
@@ -30,6 +36,22 @@ function statusFrom(state: string | undefined): NFLGameStatus {
   if (state === 'in') return 'live'
   if (state === 'post') return 'final'
   return 'scheduled'
+}
+
+function competitorId(row: EspnCompetitor | undefined): string {
+  return String(row?.id ?? row?.team?.id ?? '')
+}
+
+function mapPossessionAbbr(
+  situation: EspnSituation | undefined,
+  home: EspnCompetitor | undefined,
+  away: EspnCompetitor | undefined,
+): string | undefined {
+  const id = situation?.possession != null ? String(situation.possession) : ''
+  if (!id) return undefined
+  if (id === competitorId(home)) return home?.team?.abbreviation
+  if (id === competitorId(away)) return away?.team?.abbreviation
+  return undefined
 }
 
 export async function getNflScoreboard(week?: number): Promise<NFLGame[]> {
@@ -59,6 +81,8 @@ export async function getNflScoreboard(week?: number): Promise<NFLGame[]> {
             score: started && Number.isFinite(awayScore) ? awayScore : undefined,
           },
           clockLabel: competition.status?.type?.shortDetail,
+          possessionAbbr:
+            status === 'live' ? mapPossessionAbbr(competition.situation, home, away) : undefined,
         },
       ]
     })
