@@ -5,14 +5,20 @@ import AppHeader from '../AppHeader'
 import OverflowMenu, { type OverflowMenuItem } from '../OverflowMenu'
 import WeekSelect from '../WeekSelect'
 import { useDashboard, useNflGames, useNflPlayerStats } from '../../hooks/useDashboard'
+import { useResearchFilters } from '../../hooks/useResearchFilters'
 import { useSavedConfig } from '../../hooks/useSavedConfig'
+import { RESEARCH_SUBREDDITS } from '../../domain/research'
 import { applyShareMeta } from '../../utils/shareMeta'
 import {
   hasAnyProvider,
   loadDismissedWarnings,
+  loadResearchFilters,
   dismissWarning,
   savePrefs,
+  saveResearchFilters,
   type DashboardPrefs,
+  type ResearchFilters,
+  type ResearchSort,
 } from '../../utils/storage'
 import type { DashboardView } from '../../domain/types'
 
@@ -58,7 +64,48 @@ function prefToggle(
   }
 }
 
-function overflowItems(view: DashboardView, prefs: DashboardPrefs): OverflowMenuItem[] {
+function researchItems(research: ResearchFilters): OverflowMenuItem[] {
+  return [
+    ...RESEARCH_SUBREDDITS.map<OverflowMenuItem>((sub) => ({
+      type: 'toggle',
+      label: sub.label,
+      checked: research.subs.includes(sub.id),
+      onChange: (next) => {
+        // Merge against storage so two quick toggles in one render can't drop each other.
+        const on = new Set(loadResearchFilters().subs)
+        if (next) on.add(sub.id)
+        else on.delete(sub.id)
+        saveResearchFilters({
+          subs: RESEARCH_SUBREDDITS.filter((row) => on.has(row.id)).map((row) => row.id),
+        })
+      },
+    })),
+    {
+      type: 'select',
+      label: 'Sort',
+      value: research.sort,
+      options: [
+        { value: 'new', label: 'New' },
+        { value: 'relevance', label: 'Relevance' },
+        { value: 'top', label: 'Top' },
+        { value: 'hot', label: 'Hot' },
+      ],
+      onChange: (next) => savedSort(next),
+    },
+  ]
+}
+
+function savedSort(next: string): void {
+  const sort: ResearchSort =
+    next === 'relevance' || next === 'top' || next === 'hot' ? next : 'new'
+  saveResearchFilters({ sort })
+}
+
+function overflowItems(
+  view: DashboardView,
+  prefs: DashboardPrefs,
+  research: ResearchFilters,
+): OverflowMenuItem[] {
   if (view === 'teams') return [prefToggle('Show bench', 'showBench', prefs)]
   if (view === 'matchups') {
     return [
@@ -89,6 +136,7 @@ function overflowItems(view: DashboardView, prefs: DashboardPrefs): OverflowMenu
       prefToggle('Show opponents', 'showOpponents', prefs),
     ]
   }
+  if (view === 'research') return researchItems(research)
   return []
 }
 
@@ -101,7 +149,8 @@ export default function DashboardScreen() {
   const gamesQuery = useNflGames(connected, prefs.scoringWeek)
   const statsQuery = useNflPlayerStats(connected, prefs.scoringWeek)
   const hasLiveGame = (gamesQuery.data ?? []).some((game) => game.status === 'live')
-  const menuItems = overflowItems(view, prefs)
+  const research = useResearchFilters()
+  const menuItems = overflowItems(view, prefs, research)
   const [now, setNow] = useState(() => Date.now())
   const [dismissedWarnings, setDismissedWarnings] = useState(loadDismissedWarnings)
 

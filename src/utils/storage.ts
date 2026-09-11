@@ -1,3 +1,4 @@
+import { RESEARCH_PLAYER_CAP, RESEARCH_SUBREDDITS } from '../domain/research'
 import type { DashboardView } from '../domain/types'
 import {
   defaultEspnSeason,
@@ -39,14 +40,7 @@ const YAHOO_KEY = 'fantasy-hub-yahoo'
 const RESEARCH_KEY = 'fantasy-hub-research'
 const DISMISSED_WARNINGS_KEY = 'fantasy-hub-dismissed-warnings'
 
-const ALLOWED_RESEARCH_SUBS = new Set([
-  'fantasyfootball',
-  'nfl',
-  'dynastyff',
-  'fantasy_football',
-  'ffcommish',
-  'fantasyfootballers',
-])
+const ALLOWED_RESEARCH_SUBS = new Set<string>(RESEARCH_SUBREDDITS.map((sub) => sub.id))
 
 export type ResearchSort = 'new' | 'relevance' | 'top' | 'hot'
 
@@ -84,10 +78,10 @@ function normalizeResearchFilters(raw: unknown): ResearchFilters {
     ? value.players
         .filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
         .map((name) => name.trim())
-        .slice(0, 8)
+        .slice(0, RESEARCH_PLAYER_CAP)
     : []
   return {
-    subs: subs.length ? subs : [...DEFAULT_RESEARCH_FILTERS.subs],
+    subs,
     players,
     sort: isResearchSort(value.sort) ? value.sort : DEFAULT_RESEARCH_FILTERS.sort,
   }
@@ -113,8 +107,11 @@ export function loadResearchFilters(): ResearchFilters {
   }
 }
 
-export function saveResearchFilters(filters: ResearchFilters): void {
-  localStorage.setItem(RESEARCH_KEY, JSON.stringify(normalizeResearchFilters(filters)))
+export function saveResearchFilters(patch: Partial<ResearchFilters>): ResearchFilters {
+  const next = normalizeResearchFilters({ ...loadResearchFilters(), ...patch })
+  localStorage.setItem(RESEARCH_KEY, JSON.stringify(next))
+  window.dispatchEvent(new Event(RESEARCH_KEY))
+  return next
 }
 
 export function loadDismissedWarnings(): string[] {
