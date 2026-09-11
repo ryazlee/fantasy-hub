@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { formatPlacement } from '../../domain/standings'
 import { providerLabel } from '../../domain/sportDisplay'
 import type { DashboardContext } from './context'
@@ -6,6 +6,10 @@ import MatchupScoreline from './MatchupScoreline'
 
 function teamPath(teamId: string): string {
   return `/team/${encodeURIComponent(teamId)}`
+}
+
+function matchupPath(teamId: string, opponentId: string): string {
+  return `/matchup/${encodeURIComponent(teamId)}/${encodeURIComponent(opponentId)}`
 }
 
 export default function LeaguesView() {
@@ -41,6 +45,13 @@ export default function LeaguesView() {
                           : 'league-slate__row'
                       }
                     >
+                      {pair.away ? (
+                        <Link
+                          className="matchup-open"
+                          to={matchupPath(pair.home.id, pair.away.id)}
+                          aria-label={`Head-to-head: ${pair.home.name} vs ${pair.away.name}`}
+                        />
+                      ) : null}
                       <MatchupScoreline
                         teamName={pair.home.name}
                         teamLogoUrl={pair.home.logoUrl}

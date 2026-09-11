@@ -7,6 +7,8 @@ import type {
   FantasyTeam,
   LeagueSlate,
   LeagueSlateMatchup,
+  LeagueSlateSide,
+  MatchupDetail,
   TeamDetail,
 } from '../domain/types'
 import { loadEspnLeagueBundle } from '../providers/espn/adapter'
@@ -276,6 +278,81 @@ export async function loadDashboard(week?: number | null): Promise<DashboardData
   }
 
   return { teams, leagues, errors, currentWeek: season.current, weekCount: season.count, viewWeek }
+}
+
+function teamSide(team: FantasyTeam, points: number | undefined): LeagueSlateSide {
+  return {
+    id: team.id,
+    name: team.name,
+    logoUrl: team.logoUrl,
+    points: points ?? 0,
+    rank: team.rank,
+    wins: team.wins,
+    losses: team.losses,
+    ties: team.ties,
+  }
+}
+
+async function rosterFor(slate: LeagueSlate, teamId: string): Promise<FantasyRosterPlayer[]> {
+  return slate.rostersByTeamId[teamId] ?? (await loadRosterFromAdapter(slate.league, teamId))
+}
+
+export async function loadMatchupDetail(
+  teamId: string,
+  opponentTeamId: string,
+  week?: number | null,
+): Promise<MatchupDetail | null> {
+  const dashboard = await loadDashboard(week)
+
+  for (const slate of dashboard.leagues) {
+    const pair = slate.matchups.find(
+      (row) =>
+        (row.home.id === teamId && row.away?.id === opponentTeamId) ||
+        (row.home.id === opponentTeamId && row.away?.id === teamId),
+    )
+    if (!pair?.away) continue
+    const team = pair.home.id === teamId ? pair.home : pair.away
+    const opponent = pair.home.id === teamId ? pair.away : pair.home
+    const ownedIds = new Set(slate.ownedTeamIds)
+    const [roster, opponentRoster] = await Promise.all([
+      rosterFor(slate, team.id),
+      rosterFor(slate, opponent.id),
+    ])
+    return {
+      league: slate.league,
+      team,
+      opponent,
+      teamMine: ownedIds.has(team.id),
+      opponentMine: ownedIds.has(opponent.id),
+      roster,
+      opponentRoster,
+    }
+  }
+
+  const owned = dashboard.teams.find(
+    (row) => row.team.id === teamId && row.matchup?.opponentTeamId === opponentTeamId,
+  )
+  if (owned?.matchup) {
+    return {
+      league: owned.league,
+      team: teamSide(owned.team, owned.matchup.points),
+      opponent: teamSide(
+        {
+          id: opponentTeamId,
+          leagueId: owned.league.id,
+          name: owned.opponentName ?? 'Opponent',
+          logoUrl: owned.opponentLogoUrl,
+        },
+        owned.matchup.opponentPoints,
+      ),
+      teamMine: true,
+      opponentMine: dashboard.teams.some((row) => row.team.id === opponentTeamId),
+      roster: owned.roster,
+      opponentRoster: owned.opponentRoster,
+    }
+  }
+
+  return null
 }
 
 export async function loadTeamDetail(teamId: string, week?: number | null): Promise<TeamDetail | null> {

@@ -138,3 +138,13 @@ export type TeamDetail = {
   opponentName?: string
   roster: FantasyRosterPlayer[]
 }
+
+export type MatchupDetail = {
+  league: FantasyLeague
+  team: LeagueSlateSide
+  opponent: LeagueSlateSide
+  teamMine: boolean
+  opponentMine: boolean
+  roster: FantasyRosterPlayer[]
+  opponentRoster: FantasyRosterPlayer[]
+}

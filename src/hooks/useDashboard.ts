@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from './queryKeys'
-import { loadDashboard, loadTeamDetail } from '../services/fantasy'
+import { loadDashboard, loadMatchupDetail, loadTeamDetail } from '../services/fantasy'
 import { getNflPlayerStats, getNflScoreboard } from '../providers/nfl/adapter'
 import { hasAnyProvider } from '../utils/storage'
 import { useSavedConfig } from './useSavedConfig'
@@ -24,6 +24,15 @@ export function useTeam(teamId: string | undefined) {
     queryKey: queryKeys.team(teamId ?? '', week),
     queryFn: () => loadTeamDetail(teamId ?? '', week),
     enabled: Boolean(teamId),
+  })
+}
+
+export function useMatchup(teamId: string | undefined, opponentId: string | undefined) {
+  const week = useSavedConfig().prefs.scoringWeek
+  return useQuery({
+    queryKey: queryKeys.matchup(teamId ?? '', opponentId ?? '', week),
+    queryFn: () => loadMatchupDetail(teamId ?? '', opponentId ?? '', week),
+    enabled: Boolean(teamId && opponentId),
   })
 }
 

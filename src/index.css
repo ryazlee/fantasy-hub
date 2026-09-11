@@ -841,6 +841,7 @@ a {
 }
 
 .team-card {
+  position: relative;
   display: block;
   padding: 1rem;
   border: 1px solid var(--border);
@@ -1358,12 +1359,30 @@ a.roster-row__player:hover {
   gap: 0.45rem 0.55rem;
 }
 
+/* Fills its row so everything but the two team links opens the head-to-head. */
+.matchup-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 8px;
+}
+
+.matchup-open:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+/* Team links sit above the row link and stay only as wide as their logo and name. */
 .h2h__who {
+  position: relative;
+  z-index: 2;
+  justify-self: start;
   color: inherit;
   text-decoration: none;
 }
 
 .h2h__who--opp {
+  justify-self: end;
   flex-direction: row-reverse;
   justify-content: flex-start;
   text-align: right;
@@ -1448,10 +1467,19 @@ a.roster-row__player:hover {
   flex-direction: column;
 }
 
+.league-slate__row {
+  position: relative;
+}
+
 .league-slate__row + .league-slate__row {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+.league-slate__row:has(.matchup-open:hover) {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
 }
 
 .league-slate__row--mine .h2h__scores {

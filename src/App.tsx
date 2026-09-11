@@ -13,6 +13,7 @@ import LeaguesView from './components/dashboard/LeaguesView'
 import LiveView from './components/dashboard/LiveView'
 import ResearchView from './components/dashboard/ResearchView'
 import TeamScreen from './components/screens/TeamScreen'
+import MatchupScreen from './components/screens/MatchupScreen'
 import PlayerScreen from './components/screens/PlayerScreen'
 import SettingsScreen from './components/screens/SettingsScreen'
 import YahooCallbackScreen from './components/screens/YahooCallbackScreen'
@@ -49,6 +50,7 @@ function App() {
               <Route path="research" element={<ResearchView />} />
             </Route>
             <Route path="/team/:teamId" element={<TeamScreen />} />
+            <Route path="/matchup/:teamId/:opponentId" element={<MatchupScreen />} />
             <Route path="/player/:playerId" element={<PlayerScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
             <Route path="/yahoo/callback" element={<YahooCallbackScreen />} />

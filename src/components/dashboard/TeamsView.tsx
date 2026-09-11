@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { anyPlayerHasPlayed, playerHasPlayed, playerIsLive } from '../../domain/nflGames'
 import type { FantasyRosterPlayer, NFLGame } from '../../domain/types'
 import { providerLabel, sportLabel } from '../../domain/sportDisplay'
@@ -17,6 +17,10 @@ function teamPath(teamId: string): string {
   return `/team/${encodeURIComponent(teamId)}`
 }
 
+function matchupPath(teamId: string, opponentId: string): string {
+  return `/matchup/${encodeURIComponent(teamId)}/${encodeURIComponent(opponentId)}`
+}
+
 export default function TeamsView() {
   const { teams, games } = useOutletContext<DashboardContext>()
   const showBench = useSavedConfig().prefs.showBench
@@ -31,6 +35,13 @@ export default function TeamsView() {
         const hasOpponent = Boolean(row.matchup && oppId)
         return (
           <article key={row.team.id} className="team-card">
+            {hasOpponent && oppId ? (
+              <Link
+                className="matchup-open"
+                to={matchupPath(row.team.id, oppId)}
+                aria-label={`Head-to-head: ${row.team.name} vs ${row.opponentName ?? 'Opponent'}`}
+              />
+            ) : null}
             <p className="team-card__meta">
               {providerLabel(row.league.provider)} · {sportLabel(row.league.sport)} · {row.league.name}
             </p>
