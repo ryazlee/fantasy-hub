@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import Modal from '../Modal'
 import PlayerPhoto from '../PlayerPhoto'
 import { positionTone } from '../../domain/positions'
-import { RESEARCH_PLAYER_CAP } from '../../domain/research'
+import { playerMentions, RESEARCH_PLAYER_CAP } from '../../domain/research'
 import type { DashboardTeam, FantasyRosterPlayer, Sport } from '../../domain/types'
 import { queryKeys } from '../../hooks/queryKeys'
 import { useResearchFilters } from '../../hooks/useResearchFilters'
@@ -103,12 +103,29 @@ function relativeAge(createdUtc: number): string {
   return `${days}d`
 }
 
-function PostCard({ post }: { post: RedditPost }) {
+const TAG_CAP = 3
+
+function PostCard({ post, players }: { post: RedditPost; players: string[] }) {
+  // The worker reports what the archive matched, but a throttled per-player call drops names,
+  // so union it with what the excerpt shows and keep the order the player chips are in.
+  const matched = new Set([
+    ...(post.mentions ?? []),
+    ...playerMentions(`${post.title} ${post.selftext ?? ''}`, players),
+  ])
+  const mentions = players.filter((name) => matched.has(name))
+  const shown = mentions.slice(0, TAG_CAP)
   return (
     <a className="research-post" href={post.permalink} target="_blank" rel="noopener noreferrer">
       <p className="research-post__meta">
+        {shown.map((name) => (
+          <span key={name} className="research-post__tag">
+            {name}
+          </span>
+        ))}
+        {mentions.length > shown.length ? (
+          <span className="research-post__tag">+{mentions.length - shown.length}</span>
+        ) : null}
         <span>r/{post.subreddit}</span>
-        {post.flair ? <span>{post.flair}</span> : null}
         <span>{post.score} pts</span>
         <span>{post.comments} comments</span>
         <span>{relativeAge(post.createdUtc)}</span>
@@ -126,6 +143,7 @@ export default function ResearchView() {
   const [playerFilter, setPlayerFilter] = useState('')
   const [submitted, setSubmitted] = useState<{
     query: string
+    players: string[]
     subreddits: string[]
     sort: Sort
   } | null>(null)
@@ -180,6 +198,7 @@ export default function ResearchView() {
     if (players.length > PLAYER_CAP) return
     setSubmitted({
       query: playerSearchQuery(players),
+      players,
       subreddits: subs,
       sort,
     })
@@ -230,7 +249,7 @@ export default function ResearchView() {
   return (
     <section className="stack research">
       <div className="research-filters">
-        <div className="chips research-filters__chips" role="group" aria-label="Players">
+        <div className="research-filters__bar">
           <button
             type="button"
             className="chip"
@@ -239,28 +258,6 @@ export default function ResearchView() {
           >
             {players.length ? `Players (${players.length}/${PLAYER_CAP})` : 'Select players'}
           </button>
-          {players.map((name) => (
-            <button
-              key={name}
-              type="button"
-              className="chip chip--on"
-              onClick={() => togglePlayer(name)}
-              aria-label={`Remove ${name}`}
-            >
-              {name}
-              <span className="research-filters__remove" aria-hidden="true">
-                ×
-              </span>
-            </button>
-          ))}
-          {players.length ? (
-            <button type="button" className="chip" onClick={() => setPlayers([])}>
-              Clear
-            </button>
-          ) : null}
-        </div>
-
-        <div className="research-filters__actions">
           <button
             type="button"
             className="btn btn--primary btn--sm"
@@ -273,6 +270,28 @@ export default function ResearchView() {
             <span className="quiet">Pick a subreddit in the ⋯ menu.</span>
           ) : null}
         </div>
+
+        {players.length ? (
+          <div className="chips research-filters__chips" role="group" aria-label="Selected players">
+            {players.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="chip chip--on"
+                onClick={() => togglePlayer(name)}
+                aria-label={`Remove ${name}`}
+              >
+                {name}
+                <span className="research-filters__remove" aria-hidden="true">
+                  ×
+                </span>
+              </button>
+            ))}
+            <button type="button" className="chip" onClick={() => setPlayers([])}>
+              Clear
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <Modal
@@ -399,7 +418,7 @@ export default function ResearchView() {
               {query.data.posts.length} posts · {query.data.subreddits.map((s) => `r/${s}`).join(', ')}
             </p>
             {query.data.posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard key={post.id} post={post} players={submitted?.players ?? []} />
             ))}
           </div>
         )

@@ -2149,12 +2149,11 @@ html.theme-dark .h2h__you {
   vertical-align: 0.05em;
 }
 
-.research-filters__actions {
+.research-filters__bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
-  padding-top: 0.15rem;
 }
 
 .research-post {
@@ -2178,6 +2177,15 @@ html.theme-dark .h2h__you {
   margin: 0 0 0.35rem;
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* Names the post is about, so a result list stays scannable per player. */
+.research-post__tag {
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--inset));
+  color: var(--text);
+  font-weight: 600;
 }
 
 .research-post__title {

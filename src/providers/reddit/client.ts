@@ -11,6 +11,8 @@ export type RedditPost = {
   permalink: string
   flair?: string
   selftext?: string
+  /** Searched player names the archive matched this post on. Absent on older workers. */
+  mentions?: string[]
 }
 
 export type RedditSearchResult = {

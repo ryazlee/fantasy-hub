@@ -23,6 +23,8 @@ type RedditPost = {
   permalink: string
   flair?: string
   selftext?: string
+  /** Searched player names the archive matched this post on. */
+  mentions?: string[]
 }
 
 const YAHOO_AUTH = 'https://api.login.yahoo.com/oauth2/request_auth'
@@ -239,6 +241,9 @@ async function searchReddit(url: URL): Promise<Response> {
   }
 
   const byId = new Map<string, RedditPost>()
+  // Which searched names the archive matched a post on. Exact by construction, since
+  // we query one name at a time and the client only sees a truncated body.
+  const namesById = new Map<string, string[]>()
   let successCount = 0
   let lastError = ''
   let callIndex = 0
@@ -255,6 +260,9 @@ async function searchReddit(url: URL): Promise<Response> {
       successCount += 1
       for (const post of result.posts) {
         if (!byId.has(post.id)) byId.set(post.id, post)
+        const hits = namesById.get(post.id) ?? []
+        if (!hits.includes(name)) hits.push(name)
+        namesById.set(post.id, hits)
       }
     }
   }
@@ -273,7 +281,7 @@ async function searchReddit(url: URL): Promise<Response> {
     // new + relevance (archive has no true relevance rank)
     posts.sort((a, b) => b.createdUtc - a.createdUtc)
   }
-  posts = posts.slice(0, limit)
+  posts = posts.slice(0, limit).map((post) => ({ ...post, mentions: namesById.get(post.id) ?? [] }))
 
   return json({ posts, subreddits: subs, query: q, sort })
 }
