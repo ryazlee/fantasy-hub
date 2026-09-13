@@ -124,6 +124,36 @@ function parseSeason(raw: string | undefined, fallback?: number): number {
   return defaultEspnSeason()
 }
 
+export function parseEspnTeamIds(raw: string | undefined): string[] {
+  if (!raw?.trim()) return []
+  return [
+    ...new Set(
+      raw
+        .split(/[,\s]+/)
+        .map((part) => part.trim())
+        .filter((part) => /^\d+$/.test(part)),
+    ),
+  ]
+}
+
+export function mergeEspnTeamIds(prev?: string, next?: string): string | undefined {
+  if (!next) return next
+  if (!prev) return next
+  const ids = parseEspnTeamIds(`${prev},${next}`)
+  return ids.length ? ids.join(',') : undefined
+}
+
+function espnTeamIdTokens(raw: string): string[] {
+  const tokens = raw
+    .split(/[,\s]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (tokens.some((part) => !/^\d+$/.test(part))) {
+    throw new EspnError('Team ID should be the number from teamId= in your ESPN team URL.')
+  }
+  return tokens
+}
+
 export function completeEspnConnect(
   raw: string,
   seasonRaw = '',
@@ -134,20 +164,18 @@ export function completeEspnConnect(
     throw new EspnError('Enter a public ESPN league URL or league ID.')
   }
   const season = parseSeason(seasonRaw, parsed.season)
-  const teamId = teamRaw.trim() || parsed.teamId
-  if (teamId && !/^\d+$/.test(teamId)) {
-    throw new EspnError('Team ID should be the number from teamId= in your ESPN team URL.')
-  }
+  const teamIds = [...new Set([...parseEspnTeamIds(parsed.teamId), ...espnTeamIdTokens(teamRaw)])]
+  const teamId = teamIds.length ? teamIds.join(',') : undefined
   return {
     leagueId: parsed.leagueId,
     season,
     sport: parsed.sport,
-    teamId: teamId || undefined,
+    teamId,
     teamUrl: parsed.teamUrl || espnPublicUrl({
       leagueId: parsed.leagueId,
       season,
       sport: parsed.sport,
-      teamId: teamId || undefined,
+      teamId: teamIds[0],
     }),
   }
 }

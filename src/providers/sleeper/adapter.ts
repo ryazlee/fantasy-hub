@@ -106,13 +106,32 @@ function mapLeague(raw: SleeperLeague, scoringPeriod: number): FantasyLeague | n
   }
 }
 
+function joinOwnerNames(names: (string | undefined)[]): string | undefined {
+  const unique = [
+    ...new Set(names.map((name) => name?.trim()).filter((name): name is string => Boolean(name))),
+  ]
+  return unique.length ? unique.join(' & ') : undefined
+}
+
+function sleeperIdList(value: unknown): string[] {
+  if (value == null) return []
+  const rows = Array.isArray(value) ? value : [value]
+  return rows.map((id) => String(id)).filter(Boolean)
+}
+
+function sleeperOwnsRoster(roster: SleeperRoster, userId: string): boolean {
+  if (roster.owner_id != null && String(roster.owner_id) === userId) return true
+  return sleeperIdList(roster.co_owners).some((id) => id === userId)
+}
+
 function teamName(
   roster: SleeperRoster,
   owner: SleeperLeagueUser | undefined,
+  coOwners: SleeperLeagueUser[],
 ): { name: string; ownerName?: string; logoUrl?: string } {
   const fromRoster = roster.metadata?.team_name?.trim()
   const fromOwner = owner?.metadata?.team_name?.trim()
-  const ownerName = owner?.display_name
+  const ownerName = joinOwnerNames([owner?.display_name, ...coOwners.map((user) => user.display_name)])
   return {
     name: fromRoster || fromOwner || ownerName || `Team ${roster.roster_id}`,
     ownerName,
@@ -173,16 +192,19 @@ export async function loadSleeperLeagueBundle(
     loadPlayers(sport),
   ])
 
-  const usersById = new Map((users ?? []).map((user) => [user.user_id, user]))
+  const usersById = new Map((users ?? []).map((user) => [String(user.user_id), user]))
   const leagueKey = leagueId(rawLeagueId)
   const ownedTeamIds: string[] = []
 
   const teams: FantasyTeam[] = withComputedRanks(
     (rosters ?? []).map((roster) => {
-      const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined
-      const names = teamName(roster, owner)
+      const owner = roster.owner_id ? usersById.get(String(roster.owner_id)) : undefined
+      const coOwners = sleeperIdList(roster.co_owners)
+        .map((id) => usersById.get(id))
+        .filter((user): user is SleeperLeagueUser => user != null && user.user_id !== owner?.user_id)
+      const names = teamName(roster, owner, coOwners)
       const id = teamId(rawLeagueId, roster.roster_id)
-      if (roster.owner_id === userId) ownedTeamIds.push(id)
+      if (sleeperOwnsRoster(roster, userId)) ownedTeamIds.push(id)
       const settings = roster.settings
       return {
         id,

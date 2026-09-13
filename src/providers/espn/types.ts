@@ -46,6 +46,7 @@ export type EspnTeam = {
   nickname?: string
   logo?: string
   primaryOwner?: string
+  owners?: string[] | null
   playoffSeed?: number
   rankCalculatedFinal?: number
   record?: {

@@ -26,6 +26,8 @@ export type SleeperLeague = {
 export type SleeperRoster = {
   roster_id: number
   owner_id: string | null
+  /** Additional manager user IDs. Official docs omit this; the roster payload includes it. */
+  co_owners?: string[] | null
   players?: string[] | null
   starters?: string[] | null
   reserve?: string[] | null

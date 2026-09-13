@@ -270,9 +270,8 @@ export default function LandingScreen() {
             <input
               className="input"
               name="espn-team"
-              inputMode="numeric"
               autoComplete="off"
-              placeholder="from teamId= in your team URL"
+              placeholder="from teamId= — comma-separate co-owned teams"
               value={espnTeamId}
               onChange={(event) => setEspnTeamId(event.target.value)}
             />

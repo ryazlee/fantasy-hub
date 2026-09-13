@@ -2,6 +2,7 @@ import { RESEARCH_PLAYER_CAP, RESEARCH_SUBREDDITS } from '../domain/research'
 import type { DashboardView } from '../domain/types'
 import {
   defaultEspnSeason,
+  mergeEspnTeamIds,
   parseEspnConnectInput,
   type EspnConnection,
 } from '../providers/espn/parse'
@@ -269,8 +270,15 @@ export function connectEspn(connection: EspnConnection): SavedDashboard {
   const next = loadConfig()
   const leagues = [...espnLeagues(next)]
   const index = leagues.findIndex((row) => sameEspnLeague(row, connection))
-  if (index >= 0) leagues[index] = connection
-  else leagues.push(connection)
+  if (index >= 0) {
+    const prev = leagues[index]
+    leagues[index] = {
+      ...connection,
+      teamId: mergeEspnTeamIds(prev.teamId, connection.teamId),
+    }
+  } else {
+    leagues.push(connection)
+  }
   next.providers.espn = { leagues }
   saveConfig(next)
   return next

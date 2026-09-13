@@ -8,7 +8,7 @@ import type {
 } from '../../domain/types'
 import { injuryCode } from '../../domain/injury'
 import { withComputedRanks } from '../../domain/standings'
-import type { EspnConnection } from './parse'
+import { parseEspnTeamIds, type EspnConnection } from './parse'
 import { loadSleeperPlayers } from '../sleeper/adapter'
 import { EspnError, espnFantasyGet, espnLeagueUrl } from './client'
 import { buildEspnIdIndex, resolveEspnCanonicalId } from './mapPlayer'
@@ -43,6 +43,7 @@ const EspnLeagueSchema = z.object({
         nickname: z.string().optional(),
         logo: z.string().optional(),
         primaryOwner: z.string().optional(),
+        owners: z.array(z.string()).nullish().catch(undefined),
         playoffSeed: z.number().optional(),
         rankCalculatedFinal: z.number().optional(),
         record: z
@@ -159,7 +160,7 @@ function teamKey(leagueId: string, season: number, teamId: number): string {
   return `espn:${leagueId}:${season}:${teamId}`
 }
 
-function ownerName(
+function memberName(
   ownerId: string | undefined,
   members: Map<string, { displayName?: string; firstName?: string; lastName?: string }>,
 ): string | undefined {
@@ -168,6 +169,15 @@ function ownerName(
   if (!member) return undefined
   const combined = [member.firstName, member.lastName].filter(Boolean).join(' ').trim()
   return member.displayName || combined || undefined
+}
+
+function ownerName(
+  team: { primaryOwner?: string; owners?: string[] | null },
+  members: Map<string, { displayName?: string; firstName?: string; lastName?: string }>,
+): string | undefined {
+  const ids = [...new Set([team.primaryOwner, ...(team.owners ?? [])].filter((id): id is string => Boolean(id)))]
+  const names = ids.map((id) => memberName(id, members)).filter((name): name is string => Boolean(name))
+  return names.length ? names.join(' & ') : undefined
 }
 
 function teamName(team: {
@@ -249,10 +259,10 @@ export async function lookupEspnLeague(input: {
 }): Promise<EspnConnection> {
   const raw = await readLeague(input.sport, input.season, input.leagueId, CONNECT_VIEWS)
   const name = raw.settings?.name?.trim() || `ESPN league ${input.leagueId}`
-  if (input.teamId) {
-    const numeric = Number(input.teamId)
-    const exists = (raw.teams ?? []).some((team) => team.id === numeric)
-    if (!exists) {
+  const teamIds = parseEspnTeamIds(input.teamId)
+  if (teamIds.length) {
+    const present = new Set((raw.teams ?? []).map((team) => String(team.id)))
+    if (teamIds.some((id) => !present.has(id))) {
       throw new EspnError('That team ID is not in this ESPN league.')
     }
   }
@@ -349,7 +359,7 @@ export async function loadEspnLeagueBundle(
   const teams: FantasyTeam[] = []
   const rostersByTeamId = new Map<string, FantasyRosterPlayer[]>()
   const ownedTeamIds: string[] = []
-  const ownedRaw = conn.teamId ? Number(conn.teamId) : undefined
+  const ownedRaw = new Set(parseEspnTeamIds(conn.teamId))
 
   for (const team of raw.teams ?? []) {
     if (team.id == null) continue
@@ -361,7 +371,7 @@ export async function loadEspnLeagueBundle(
       id,
       leagueId,
       name: teamName(team),
-      ownerName: ownerName(team.primaryOwner, members),
+      ownerName: ownerName(team, members),
       logoUrl: teamLogo(team.logo),
       rank: seed && seed > 0 ? seed : finalRank && finalRank > 0 ? finalRank : undefined,
       wins: overall?.wins,
@@ -369,7 +379,7 @@ export async function loadEspnLeagueBundle(
       ties: overall?.ties,
       pointsFor: overall?.pointsFor,
     })
-    if (ownedRaw == null || team.id === ownedRaw) ownedTeamIds.push(id)
+    if (ownedRaw.size === 0 || ownedRaw.has(String(team.id))) ownedTeamIds.push(id)
 
     const mapped: FantasyRosterPlayer[] = []
     for (const entry of team.roster?.entries ?? []) {

@@ -54,12 +54,92 @@ function content(raw: unknown): Record<string, unknown> {
   return yahooMerge(root.fantasy_content ?? root)
 }
 
-function isOwnedTeam(team: Record<string, unknown>): boolean {
-  if (num(team.is_owned) === 1 || text(team.is_owned) === '1') return true
+function yahooFlag(value: unknown): boolean {
+  return value === true || num(value) === 1 || text(value) === '1'
+}
+
+function isOwnedTeam(team: Record<string, unknown>, ownedKeys: Set<string>): boolean {
+  if (yahooFlag(team.is_owned) || yahooFlag(team.is_owned_by_current_login)) return true
+  const key = text(team.team_key)
+  if (key && ownedKeys.has(key)) return true
   const managers = yahooResources(team.managers, 'manager')
-  return managers.some(
-    (m) => num(m.is_current_login) === 1 || text(m.is_current_login) === '1',
-  )
+  return managers.some((m) => yahooFlag(m.is_current_login))
+}
+
+function managerNames(team: Record<string, unknown>): string | undefined {
+  const names = yahooResources(team.managers, 'manager')
+    .map((row) => text(row.nickname) || text(row.guid))
+    .filter((name): name is string => Boolean(name))
+  return names.length ? names.join(' & ') : undefined
+}
+
+function leagueKeyFromTeamKey(teamKey: string): string {
+  const cut = teamKey.lastIndexOf('.t.')
+  return cut > 0 ? teamKey.slice(0, cut) : ''
+}
+
+function collectOwnedYahooTeamKeys(raw: unknown): Set<string> {
+  const keys = new Set<string>()
+  if (raw == null) return keys
+  const users = yahooResources(content(raw).users, 'user')
+  const games = yahooResources(users[0]?.games, 'game')
+  for (const game of games) {
+    for (const team of yahooResources(game.teams, 'team')) {
+      const key = text(team.team_key)
+      if (key) keys.add(key)
+    }
+  }
+  return keys
+}
+
+type YahooLeagueJob = {
+  sport: Sport
+  season: number
+  league: Record<string, unknown>
+}
+
+function yahooGames(raw: unknown): Record<string, unknown>[] {
+  const users = yahooResources(content(raw).users, 'user')
+  return yahooResources(users[0]?.games, 'game')
+}
+
+function collectYahooLeagueJobs(leaguesRaw: unknown): { jobs: YahooLeagueJob[]; seen: Set<string> } {
+  const jobs: YahooLeagueJob[] = []
+  const seen = new Set<string>()
+  const year = new Date().getFullYear()
+  for (const game of yahooGames(leaguesRaw)) {
+    const sport = sportFromCode(text(game.code) || text(game.name).toLowerCase())
+    if (!sport) continue
+    const season = num(game.season) ?? year
+    for (const league of yahooResources(game.leagues, 'league')) {
+      const key = text(league.league_key)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      jobs.push({ sport, season, league })
+    }
+  }
+  return { jobs, seen }
+}
+
+function missingYahooLeaguesFromTeams(
+  teamsRaw: unknown,
+  seen: Set<string>,
+): { sport: Sport; season: number; leagueKey: string }[] {
+  const missing: { sport: Sport; season: number; leagueKey: string }[] = []
+  if (teamsRaw == null) return missing
+  const year = new Date().getFullYear()
+  for (const game of yahooGames(teamsRaw)) {
+    const sport = sportFromCode(text(game.code) || text(game.name).toLowerCase())
+    if (!sport) continue
+    const season = num(game.season) ?? year
+    for (const team of yahooResources(game.teams, 'team')) {
+      const leagueKey = leagueKeyFromTeamKey(text(team.team_key))
+      if (!leagueKey || seen.has(leagueKey)) continue
+      seen.add(leagueKey)
+      missing.push({ sport, season, leagueKey })
+    }
+  }
+  return missing
 }
 
 function applyYahooStanding(team: FantasyTeam, row: Record<string, unknown>): FantasyTeam {
@@ -103,72 +183,88 @@ export async function loadYahooLeagueBundles(
 ): Promise<LeagueBundle[]> {
   const year = new Date().getFullYear()
   const seasons = `${year - 1},${year}`
+  const gamesFilter = `users;use_login=1/games;game_codes=nfl,nba,mlb,nhl;seasons=${seasons}`
   // Yahoo documents users→games→leagues and users→games→teams, not games/leagues/teams.
   // Restrict to sports we map; some games reject /leagues and fail the whole collection.
-  const raw = await yahooGet<unknown>(
-    `users;use_login=1/games;game_codes=nfl,nba,mlb,nhl;seasons=${seasons}/leagues`,
-    session,
-  )
-  const users = yahooResources(content(raw).users, 'user')
-  const user = users[0] ?? {}
-  const games = yahooResources(user.games, 'game')
-  const bundles: LeagueBundle[] = []
+  // /teams includes co-managed teams that /leagues sometimes omits.
+  const [raw, teamsRaw] = await Promise.all([
+    yahooGet<unknown>(`${gamesFilter}/leagues`, session),
+    yahooGet<unknown>(`${gamesFilter}/teams`, session).catch(() => null),
+  ])
+  const ownedTeamKeys = collectOwnedYahooTeamKeys(teamsRaw)
+  const { jobs, seen } = collectYahooLeagueJobs(raw)
+  for (const missing of missingYahooLeaguesFromTeams(teamsRaw, seen)) {
+    try {
+      const leagueRaw = await yahooGet<unknown>(
+        `league/${encodeURIComponent(missing.leagueKey)}`,
+        session,
+      )
+      jobs.push({
+        sport: missing.sport,
+        season: missing.season,
+        league: yahooMerge(content(leagueRaw).league),
+      })
+    } catch {
+      // Skip co-managed leagues Yahoo will not return.
+    }
+  }
 
-  for (const game of games) {
-    const sport = sportFromCode(text(game.code) || text(game.name).toLowerCase())
-    if (!sport) continue
-    const season = num(game.season) ?? year
-    const leagues = yahooResources(game.leagues, 'league')
-    const catalog = sport === 'nfl' ? await loadSleeperPlayers('nfl') : {}
+  const bundles: LeagueBundle[] = []
+  const catalogBySport = new Map<Sport, Awaited<ReturnType<typeof loadSleeperPlayers>>>()
+
+  for (const job of jobs) {
+    const { sport, season, league } = job
+    const key = text(league.league_key)
+    if (!key) continue
+    if (sport === 'nfl' && !catalogBySport.has('nfl')) {
+      catalogBySport.set('nfl', await loadSleeperPlayers('nfl'))
+    }
+    const catalog = catalogBySport.get(sport) ?? {}
     const byYahooId = buildYahooIdIndex(catalog)
 
-    for (const league of leagues) {
-      const key = text(league.league_key)
-      if (!key) continue
-      const nativeWeek = num(league.current_week) ?? num(league.start_week) ?? 1
-      const scoringPeriod =
-        scoringPeriodOverride && scoringPeriodOverride > 0 ? scoringPeriodOverride : nativeWeek
-      const id = leagueId(key)
-      const mappedLeague: FantasyLeague = {
-        id,
-        provider: 'yahoo',
-        name: text(league.name) || 'Yahoo league',
-        sport,
-        season,
-        scoringPeriod,
-        teamCount: num(league.num_teams) ?? 0,
-        scoring: {},
-      }
+    const nativeWeek = num(league.current_week) ?? num(league.start_week) ?? 1
+    const scoringPeriod =
+      scoringPeriodOverride && scoringPeriodOverride > 0 ? scoringPeriodOverride : nativeWeek
+    const id = leagueId(key)
+    const mappedLeague: FantasyLeague = {
+      id,
+      provider: 'yahoo',
+      name: text(league.name) || 'Yahoo league',
+      sport,
+      season,
+      scoringPeriod,
+      teamCount: num(league.num_teams) ?? 0,
+      scoring: {},
+    }
 
-      const nestedTeams = yahooResources(league.teams, 'team')
-      const teamRows =
-        nestedTeams.length > 0
-          ? nestedTeams
-          : yahooResources(
-              yahooMerge(
-                content(await yahooGet<unknown>(`league/${encodeURIComponent(key)}/teams`, session)).league,
-              ).teams,
-              'team',
-            )
-      mappedLeague.teamCount = mappedLeague.teamCount || teamRows.length
+    const nestedTeams = yahooResources(league.teams, 'team')
+    const teamRows =
+      nestedTeams.length > 0
+        ? nestedTeams
+        : yahooResources(
+            yahooMerge(
+              content(await yahooGet<unknown>(`league/${encodeURIComponent(key)}/teams`, session)).league,
+            ).teams,
+            'team',
+          )
+    mappedLeague.teamCount = mappedLeague.teamCount || teamRows.length
 
-      const teams: FantasyTeam[] = []
-      const ownedTeamIds: string[] = []
-      for (const team of teamRows) {
-        const teamKey = text(team.team_key)
-        if (!teamKey) continue
-        const idForTeam = teamId(teamKey)
-        const managers = yahooResources(team.managers, 'manager')
-        teams.push({
-          id: idForTeam,
-          leagueId: id,
-          name: text(team.name) || `Team ${text(team.team_id)}`,
-          ownerName: text(managers[0]?.nickname) || text(managers[0]?.guid) || undefined,
-          logoUrl: logoFromTeam(team),
-        })
-        if (isOwnedTeam(team)) ownedTeamIds.push(idForTeam)
-      }
-      if (ownedTeamIds.length === 0 && teams.length === 1) ownedTeamIds.push(teams[0].id)
+    const teams: FantasyTeam[] = []
+    const ownedTeamIds: string[] = []
+    for (const team of teamRows) {
+      const teamKey = text(team.team_key)
+      if (!teamKey) continue
+      const idForTeam = teamId(teamKey)
+      teams.push({
+        id: idForTeam,
+        leagueId: id,
+        name: text(team.name) || `Team ${text(team.team_id)}`,
+        ownerName: managerNames(team),
+        logoUrl: logoFromTeam(team),
+      })
+      if (isOwnedTeam(team, ownedTeamKeys)) ownedTeamIds.push(idForTeam)
+    }
+    if (ownedTeamIds.length === 0 && teams.length === 1) ownedTeamIds.push(teams[0].id)
 
       const [scoreboardRaw, standingsRaw] = await Promise.all([
         yahooGet<unknown>(
@@ -265,7 +361,6 @@ export async function loadYahooLeagueBundles(
         rostersByTeamId,
         ownedTeamIds,
       })
-    }
   }
 
   if (bundles.length === 0) {
